@@ -16,12 +16,6 @@
 
   <dependencies>
     <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-api</artifactId>
-      <version>1.6.4</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
       <groupId>org.apache.lucene</groupId>
       <artifactId>lucene-core</artifactId>
       <version>3.0.3</version>
@@ -33,14 +27,8 @@
       <version>4.8.2</version>
       <scope>test</scope>
     </dependency>
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-jdk14</artifactId>
-      <version>1.6.4</version>
-      <scope>test</scope>
-    </dependency>
   </dependencies>
-  
+
   <build>
     <plugins>
       <plugin>
@@ -49,7 +37,7 @@
         <configuration>
           <attach>false</attach>
         </configuration>
-      </plugin>   
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-install-plugin</artifactId>
