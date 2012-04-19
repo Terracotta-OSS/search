@@ -24,10 +24,12 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -46,7 +48,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LuceneIndexManager {
 
   private final Logger                                logger;
-
   private final AtomicBoolean                         init                       = new AtomicBoolean();
   private final ConcurrentMap<String, IndexGroup>     idxGroups                  = new ConcurrentHashMap<String, IndexGroup>();
   private final ConcurrentMap<String, Directory>      tempDirs                   = new ConcurrentHashMap<String, Directory>();
@@ -57,12 +58,11 @@ public class LuceneIndexManager {
   private final boolean                               offHeapdir;
   private boolean                                     shutdown;
   private final boolean                               useCommitThread;
-
-  private final int                                   perCacheIdxCt;
-  private final ExecutorService                       queryThreadPool;
-
   private final LoggerFactory                         loggerFactory;
-  private final Configuration                         config;
+  private final Configuration                         cfg;
+  private final int                                   perCacheIdxCt;
+
+  private final ExecutorService                       queryThreadPool;
 
   static final String                                 TERRACOTTA_CACHE_NAME_FILE = "__terracotta_cache_name.txt";
   static final String                                 TERRACOTTA_SCHEMA_FILE     = "__terracotta_schema.properties";
@@ -71,14 +71,15 @@ public class LuceneIndexManager {
 
   public LuceneIndexManager(File indexDir, boolean isPermStore, LoggerFactory loggerFactory, Configuration cfg) {
     this.loggerFactory = loggerFactory;
-    this.indexDir = indexDir;
+    this.cfg = cfg;
+    this.logger = loggerFactory.getLogger(LuceneIndexManager.class);
     this.perCacheIdxCt = cfg.indexesPerCahce();
-    this.config = cfg;
 
-    logger = loggerFactory.getLogger(getClass());
     logger.info("Lucene version: " + Constants.LUCENE_MAIN_VERSION);
 
     queryThreadPool = createQueryThreadPool(cfg.maxConcurrentQueries(), cfg.indexesPerCahce());
+
+    this.indexDir = indexDir;
 
     boolean useRamdir = cfg.useRamDir();
     boolean useOffHeapdir = cfg.useOffHeap();
@@ -102,17 +103,25 @@ public class LuceneIndexManager {
   }
 
   private static ExecutorService createQueryThreadPool(int maxConcurrentQueries, int indexesPerCahce) {
-    // because each query can be against its own cache
-    return Executors.newFixedThreadPool(maxConcurrentQueries * indexesPerCahce, new ThreadFactory() {
-      private final AtomicInteger ct = new AtomicInteger(0);
+    return Executors.newFixedThreadPool(maxConcurrentQueries * indexesPerCahce, // because
+                                        // each
+                                        // query
+                                        // can
+                                        // be
+                                        // against
+                                        // its
+                                        // own
+                                        // cache
+                                        new ThreadFactory() {
+                                          private final AtomicInteger ct = new AtomicInteger(0);
 
-      @Override
-      public Thread newThread(Runnable r) {
-        Thread worker = new Thread(r, "SearchQueryWorker-" + ct.incrementAndGet());
-        worker.setDaemon(true);
-        return worker;
-      }
-    });
+                                          @Override
+                                          public Thread newThread(Runnable r) {
+                                            Thread worker = new Thread(r, "SearchQueryWorker-" + ct.incrementAndGet());
+                                            worker.setDaemon(true);
+                                            return worker;
+                                          }
+                                        });
   }
 
   public void init() throws IOException {
@@ -247,7 +256,7 @@ public class LuceneIndexManager {
     }
   }
 
-  public void remove(String indexName, Object key, long segmentOid, ProcessingContext context) throws IndexException {
+  public void remove(String indexName, String key, long segmentOid, ProcessingContext context) throws IndexException {
     IndexGroup group = getGroup(indexName);
     if (group != null) {
       group.remove(key, segmentOid, context);
@@ -257,7 +266,7 @@ public class LuceneIndexManager {
     }
   }
 
-  public void replace(String indexName, Object key, ValueID value, Object previousValue, List<NVPair> attributes,
+  public void replace(String indexName, String key, ValueID value, Object previousValue, List<NVPair> attributes,
                       long segmentOid, ProcessingContext context) throws IndexException {
     IndexGroup group = getGroup(indexName);
     if (group != null) {
@@ -279,17 +288,14 @@ public class LuceneIndexManager {
     }
   }
 
-  public void update(String indexName, Object key, ValueID value, List<NVPair> attributes, long segmentOid,
+  public void update(String indexName, String key, ValueID value, List<NVPair> attributes, long segmentOid,
                      ProcessingContext context) throws IndexException {
-    IndexGroup group = getGroup(indexName);
-    if (group != null) group.update(key, value, attributes, segmentOid, context);
-    else {
-      logger.warn("Update failed: no such index group [" + indexName + "] exists");
-      context.processed();
-    }
+    // Get or create here b/c draining the journal will do a blind update due to a possible race with index sync
+    IndexGroup group = getOrCreateGroup(indexName, attributes);
+    group.update(key, value, attributes, segmentOid, context);
   }
 
-  public void insert(String indexName, Object key, ValueID value, List<NVPair> attributes, long segmentOid,
+  public void insert(String indexName, String key, ValueID value, List<NVPair> attributes, long segmentOid,
                      ProcessingContext context) throws IndexException {
     IndexGroup group = getOrCreateGroup(indexName, attributes);
     group.insert(key, value, attributes, segmentOid, context);
@@ -522,7 +528,7 @@ public class LuceneIndexManager {
 
     }
 
-    private void replaceIfPresent(Object key, ValueID value, Object previousValue, List<NVPair> attributes,
+    private void replaceIfPresent(String key, ValueID value, Object previousValue, List<NVPair> attributes,
                                   long segmentOid, ProcessingContext context) throws IndexException {
       LuceneIndex index = getIndex(segmentOid);
       if (index != null) {
@@ -540,7 +546,7 @@ public class LuceneIndexManager {
                                        segmentOid, groupName));
     }
 
-    private void remove(Object key, long segmentOid, ProcessingContext context) throws IndexException {
+    private void remove(String key, long segmentOid, ProcessingContext context) throws IndexException {
       LuceneIndex index = getIndex(segmentOid);
       if (index != null) {
         index.remove(key, context);
@@ -558,18 +564,21 @@ public class LuceneIndexManager {
 
     }
 
-    private void update(Object key, ValueID value, List<NVPair> attributes, long segmentOid, ProcessingContext context)
+    private void update(String key, ValueID value, List<NVPair> attributes, long segmentOid, ProcessingContext context)
         throws IndexException {
       LuceneIndex index = getIndex(segmentOid);
-      if (index != null) {
-        index.update(key, value, attributes, segmentOid, context);
-      } else {
-        logger.warn(String.format("Unable to run update: segment %s has no index in group %s", segmentOid, groupName));
+      if (index == null) {
+        try {
+          // Create here, similar to update() one level higher
+          index = createIndex(segmentOid, false);
+        } catch (IOException x) {
+          throw new IndexException(x);
+        }
       }
-
+      index.update(key, value, attributes, segmentOid, context);
     }
 
-    private void insert(Object key, ValueID value, List<NVPair> attributes, long segmentOid, ProcessingContext context)
+    private void insert(String key, ValueID value, List<NVPair> attributes, long segmentOid, ProcessingContext context)
         throws IndexException {
       LuceneIndex index = getIndex(segmentOid);
       if (index == null) {
@@ -622,6 +631,35 @@ public class LuceneIndexManager {
       return AbstractAggregator.aggregator(aggregatorType, attributeName, type);
     }
 
+    private List<IndexQueryResult> nextIndexResults(Collection<List<IndexQueryResult>> resultsFromAllIndexes,
+                                                    List<NVPair> sortBy) {
+      final Comparator<IndexQueryResult> comp = new QueryResultComparator(sortBy);
+      return Collections.min(resultsFromAllIndexes, new Comparator<List<IndexQueryResult>>() {
+
+        public int compare(List<IndexQueryResult> o1, List<IndexQueryResult> o2) {
+          IndexQueryResult head1 = o1.isEmpty() ? null : o1.get(0);
+          IndexQueryResult head2 = o2.isEmpty() ? null : o2.get(0);
+          return head1 == null && head2 == null ? 0 : (head1 == null ? 1 : (head2 == null ? -1 : comp.compare(head1,
+                                                                                                              head2)));
+        }
+
+      });
+    }
+
+    private List<IndexQueryResult> mergeSort(Collection<List<IndexQueryResult>> idxResults, List<NVPair> sortBy) {
+      IndexQueryResult lowest = null;
+      List<IndexQueryResult> sorted = new ArrayList<IndexQueryResult>();
+      do {
+        List<IndexQueryResult> next = nextIndexResults(idxResults, sortBy);
+        if (next.isEmpty()) lowest = null;
+        else {
+          lowest = next.remove(0);
+          sorted.add(lowest);
+        }
+      } while (lowest != null);
+      return sorted;
+    }
+
     private SearchResult searchIndex(final List queryStack, final boolean includeKeys, final boolean includeValues,
                                      final Set<String> attributeSet, final List<NVPair> sortAttributes,
                                      final List<NVPair> aggPairs, final int maxResults) throws IndexException {
@@ -654,6 +692,7 @@ public class LuceneIndexManager {
       }
 
       boolean unOrdered = sortAttributes == null || sortAttributes.isEmpty();
+      Collection<List<IndexQueryResult>> stripeResults = new LinkedList<List<IndexQueryResult>>();
       try {
         boolean isAny = mergeResult.isAnyCriteriaMatch();
         for (Future<SearchResult> fut : queryThreadPool.invokeAll(searchTasks)) {
@@ -661,16 +700,20 @@ public class LuceneIndexManager {
           List<IndexQueryResult> qRes = mergeResult.getQueryResults();
 
           isAny |= curRes.isAnyCriteriaMatch();
-          if (unOrdered && maxResults >= 0) {
-            Iterator<IndexQueryResult> iter = curRes.getQueryResults().iterator();
-            while (iter.hasNext() && qRes.size() < maxResults) {
-              qRes.add(iter.next());
+          if (unOrdered) {
+            if (maxResults >= 0) {
+              Iterator<IndexQueryResult> iter = curRes.getQueryResults().iterator();
+              while (iter.hasNext() && qRes.size() < maxResults) {
+                qRes.add(iter.next());
+              }
+              // stop merging if result limit reached - there is no sorting so any N will do
+              if (qRes.size() == maxResults) break;
             }
-            // stop merging if result limit reached - there is no sorting so any N will do
-            if (qRes.size() == maxResults) break;
+            // grab everything
+            else qRes.addAll(curRes.getQueryResults());
           }
           // grab everything - we will sort and/or trim results below
-          else qRes.addAll(curRes.getQueryResults());
+          else stripeResults.add(curRes.getQueryResults());
         }
         mergeResult = new SearchResult(mergeResult.getQueryResults(), mergeResult.getAggregators(), isAny);
 
@@ -679,16 +722,17 @@ public class LuceneIndexManager {
         throw new IndexException(ex);
       }
 
-      List<IndexQueryResult> allQueryResults = mergeResult.getQueryResults();
+      List<IndexQueryResult> allQueryResults;
       if (!unOrdered) {
-        Collections.sort(allQueryResults, new QueryResultComparator(sortAttributes));
+        allQueryResults = mergeSort(stripeResults, sortAttributes);
 
         if (maxResults >= 0 && allQueryResults.size() > maxResults) {
           List<IndexQueryResult> trimmed = new ArrayList<IndexQueryResult>(allQueryResults.subList(0, maxResults));
-          allQueryResults.clear();
-          allQueryResults.addAll(trimmed);
+          allQueryResults = trimmed;
         }
+        mergeResult.getQueryResults().addAll(allQueryResults);
       }
+      allQueryResults = mergeResult.getQueryResults();
 
       if (includeCount) {
         Collection<Aggregator> countAggs = aggregators.get(COUNT_AGG_NAME);
@@ -720,9 +764,8 @@ public class LuceneIndexManager {
               itr.remove();
               if (rowAttrs.isEmpty() && !includeKeys && !includeValues) {
                 rowItr.remove();
-              } else {
-                rowItr.set(new IndexQueryResultImpl(row.getKey(), row.getValue(), rowAttrs, row.getSortAttributes()));
-              }
+              } else rowItr.set(new IndexQueryResultImpl(row.getKey(), row.getValue(), rowAttrs, row
+                  .getSortAttributes()));
             }
             for (Aggregator agg : attrAggs) {
               try {
@@ -768,11 +811,11 @@ public class LuceneIndexManager {
 
         if (!load) {
           logger.info(String.format("Creating search index [%s/%d]", groupName, idxSegment));
-          luceneIndex = new LuceneIndex(createDirectoryFor(path), idxStr, path, useCommitThread, this, config,
+          luceneIndex = new LuceneIndex(createDirectoryFor(path), idxStr, path, useCommitThread, this, cfg,
                                         loggerFactory);
         } else {
           luceneIndex = new LuceneIndex(directoryFor(groupName, idxStr, path), idxStr, path, useCommitThread, this,
-                                        config, loggerFactory); // FIXME
+                                        cfg, loggerFactory); // FIXME
           logger.info(String.format("Opening existing search index [%s/%d]", groupName, idxSegment));
         }
 
@@ -944,6 +987,7 @@ public class LuceneIndexManager {
       }
 
     }
+
   }
 
   /**

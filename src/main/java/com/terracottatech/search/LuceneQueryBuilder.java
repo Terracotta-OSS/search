@@ -124,6 +124,9 @@ public class LuceneQueryBuilder {
         Integer max = ((BooleanNVPair) maxRange).getValue() ? 1 : 0;
         return NumericRangeQuery.newIntRange(name, min, max, minInclude, maxInclude);
       }
+      case BYTE_ARRAY:
+        // XXX: This type is unexpected here!
+        throw new AssertionError();
       case BYTE: {
         Integer min = Integer.valueOf(((ByteNVPair) minRange).getValue());
         Integer max = Integer.valueOf(((ByteNVPair) maxRange).getValue());
@@ -179,8 +182,11 @@ public class LuceneQueryBuilder {
         String max = ((StringNVPair) maxRange).getValue().toLowerCase();
         return new TermRangeQuery(name, min, max, minInclude, maxInclude);
       }
-      case NULL:
-        throw new IndexException("NULL encountered for between");
+      case NULL: {
+        throw new AssertionError();
+      }
+      case VALUE_ID:
+        throw new AssertionError();
     }
 
     throw new AssertionError(minRange);
@@ -236,6 +242,9 @@ public class LuceneQueryBuilder {
         Integer max = below ? (((BooleanNVPair) term).getValue() ? 1 : 0) : null;
         return NumericRangeQuery.newIntRange(term.getName(), min, max, minInclude, maxInclude);
       }
+      case BYTE_ARRAY:
+        // XXX: This type is unexpected here!
+        throw new AssertionError();
       case BYTE: {
         Integer min = below ? null : Integer.valueOf(((ByteNVPair) term).getValue());
         Integer max = below ? Integer.valueOf(((ByteNVPair) term).getValue()) : null;
@@ -291,8 +300,11 @@ public class LuceneQueryBuilder {
         String max = below ? ((StringNVPair) term).getValue().toLowerCase() : null;
         return new TermRangeQuery(term.getName(), min, max, minInclude, maxInclude);
       }
-      case NULL:
-        throw new IndexException("NULL encountered for term " + term);
+      case NULL: {
+        throw new AssertionError();
+      }
+      case VALUE_ID:
+        throw new AssertionError();
     }
 
     throw new AssertionError(term.toString());
@@ -339,6 +351,9 @@ public class LuceneQueryBuilder {
       case BYTE:
         ByteNVPair bytePair = (ByteNVPair) term;
         return new TermQuery(new Term(term.getName(), NumericUtils.intToPrefixCoded(bytePair.getValue())));
+      case BYTE_ARRAY:
+        // XXX: This type is unexpected here!
+        break;
       case CHAR:
         CharNVPair charPair = (CharNVPair) term;
         return new TermQuery(new Term(term.getName(), NumericUtils.intToPrefixCoded(charPair.getValue())));
@@ -371,7 +386,9 @@ public class LuceneQueryBuilder {
       case STRING:
         break;
       case NULL:
-        throw new IndexException("NULL term " + term);
+        throw new AssertionError();
+      case VALUE_ID:
+        throw new AssertionError();
     }
 
     return new TermQuery(new Term(term.getName(), term.valueAsString().toLowerCase()));

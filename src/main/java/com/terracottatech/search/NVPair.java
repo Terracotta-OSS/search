@@ -3,8 +3,9 @@
  */
 package com.terracottatech.search;
 
+import java.io.Serializable;
 
-public interface NVPair {
+public interface NVPair extends Serializable {
 
   String getName();
 
@@ -18,4 +19,5 @@ public interface NVPair {
 
   // XXX: remove this from the interface?
   String valueAsString();
+
 }

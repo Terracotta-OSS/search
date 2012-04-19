@@ -3,7 +3,10 @@
  */
 package com.terracottatech.search;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 
 public abstract class AbstractNVPair implements NVPair {
 
@@ -46,63 +49,42 @@ public abstract class AbstractNVPair implements NVPair {
   // XXX: make this non-public when possible
   public abstract String valueAsString();
 
-  // public Object deserializeFrom(TCByteBufferInput in, ObjectStringSerializer serializer) throws IOException {
-  // String readName = serializer.readString(in);
-  // byte ordinal = in.readByte();
-  // ValueType type = ALL_TYPES[ordinal];
-  // return type.deserializeFrom(readName, in, serializer);
-  // }
-  //
-  // public void serializeTo(TCByteBufferOutput out, ObjectStringSerializer serializer) {
-  // serializer.writeString(out, getName());
-  //
-  // ValueType type = getType();
-  //
-  // out.writeByte(type.ordinal());
-  // type.serializeTo(this, out, serializer);
-  // }
-
   public abstract ValueType getType();
 
-  // public static AbstractNVPair deserializeInstance(TCByteBufferInput in, ObjectStringSerializer serializer)
-  // throws IOException {
-  // return (AbstractNVPair) TEMPLATE.deserializeFrom(in, serializer);
-  // }
+  private static class Template extends AbstractNVPair {
 
-  // private static class Template extends AbstractNVPair {
-  //
-  // Template() {
-  // super("");
-  // }
-  //
-  // @Override
-  // public String valueAsString() {
-  // throw new AssertionError();
-  // }
-  //
-  // @Override
-  // public ValueType getType() {
-  // throw new AssertionError();
-  // }
-  //
-  // @Override
-  // boolean basicEquals(NVPair other) {
-  // throw new AssertionError();
-  // }
-  //
-  // public Object getObjectValue() {
-  // throw new AssertionError();
-  // }
-  //
-  // @Override
-  // public NVPair cloneWithNewName(String newName) {
-  // throw new AssertionError();
-  // }
-  //
-  // public NVPair cloneWithNewValue(Object newValue) {
-  // throw new AssertionError();
-  // }
-  // }
+    Template() {
+      super("");
+    }
+
+    @Override
+    public String valueAsString() {
+      throw new AssertionError();
+    }
+
+    @Override
+    public ValueType getType() {
+      throw new AssertionError();
+    }
+
+    @Override
+    boolean basicEquals(NVPair other) {
+      throw new AssertionError();
+    }
+
+    public Object getObjectValue() {
+      throw new AssertionError();
+    }
+
+    @Override
+    public NVPair cloneWithNewName(String newName) {
+      throw new AssertionError();
+    }
+
+    public NVPair cloneWithNewValue(Object newValue) {
+      throw new AssertionError();
+    }
+  }
 
   public static class ByteNVPair extends AbstractNVPair {
     private final byte value;
@@ -482,6 +464,52 @@ public abstract class AbstractNVPair implements NVPair {
     }
   }
 
+  public static class ByteArrayNVPair extends AbstractNVPair {
+    private final byte[] value;
+
+    public ByteArrayNVPair(String name, byte[] value) {
+      super(name);
+      this.value = value;
+    }
+
+    public byte[] getValue() {
+      return value;
+    }
+
+    public Object getObjectValue() {
+      return value;
+    }
+
+    @Override
+    public String valueAsString() {
+      List<Byte> list = new ArrayList<Byte>(value.length);
+      for (byte b : value) {
+        list.add(b);
+      }
+      return list.toString();
+    }
+
+    @Override
+    public ValueType getType() {
+      return ValueType.BYTE_ARRAY;
+    }
+
+    @Override
+    boolean basicEquals(NVPair obj) {
+      if (obj instanceof ByteArrayNVPair) { return Arrays.equals(value, ((ByteArrayNVPair) obj).value); }
+      return false;
+    }
+
+    @Override
+    public NVPair cloneWithNewName(String newName) {
+      return new ByteArrayNVPair(newName, value);
+    }
+
+    public NVPair cloneWithNewValue(Object newValue) {
+      return new ByteArrayNVPair(getName(), (byte[]) newValue);
+    }
+  }
+
   public static class DateNVPair extends AbstractNVPair {
     private final Date value;
 
@@ -666,6 +694,49 @@ public abstract class AbstractNVPair implements NVPair {
     }
   }
 
+  public static class ValueIdNVPair extends AbstractNVPair {
+
+    private final ValueID id;
+
+    public ValueIdNVPair(String name, ValueID oid) {
+      super(name);
+      this.id = oid;
+    }
+
+    public Object getObjectValue() {
+      return id;
+    }
+
+    public ValueID getValue() {
+      return id;
+    }
+
+    @Override
+    public NVPair cloneWithNewName(String newName) {
+      return new ValueIdNVPair(newName, id);
+    }
+
+    @Override
+    boolean basicEquals(NVPair other) {
+      if (other instanceof ValueIdNVPair) { return id.equals(((ValueIdNVPair) other).id); }
+      return false;
+    }
+
+    @Override
+    public String valueAsString() {
+      return id.toString();
+    }
+
+    @Override
+    public ValueType getType() {
+      return ValueType.VALUE_ID;
+    }
+
+    public NVPair cloneWithNewValue(Object newValue) {
+      return new ValueIdNVPair(getName(), (ValueID) newValue);
+    }
+  }
+
   public static NVPair createNVPair(String name, Object value, ValueType type) {
     if (value == null) return new NullNVPair(name);
 
@@ -718,11 +789,15 @@ public abstract class AbstractNVPair implements NVPair {
       return new LongNVPair(attributeName, (Long) value);
     } else if (value instanceof String) {
       return new StringNVPair(attributeName, (String) value);
+    } else if (value instanceof byte[]) {
+      return new ByteArrayNVPair(attributeName, (byte[]) value);
     } else if (value instanceof java.sql.Date) {
       // this one must come before regular java.util.Date
       return new SqlDateNVPair(attributeName, (java.sql.Date) value);
     } else if (value instanceof Date) {
       return new DateNVPair(attributeName, (Date) value);
+    } else if (value instanceof ValueID) {
+      return new ValueIdNVPair(attributeName, (ValueID) value);
     } else if (value instanceof Enum) { return new EnumNVPair(attributeName, (Enum) value); }
 
     throw new IllegalArgumentException("Unsupported type: " + value.getClass().getName());

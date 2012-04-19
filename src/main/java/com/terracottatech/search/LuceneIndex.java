@@ -47,6 +47,7 @@ import com.terracottatech.search.AbstractNVPair.LongNVPair;
 import com.terracottatech.search.AbstractNVPair.ShortNVPair;
 import com.terracottatech.search.AbstractNVPair.SqlDateNVPair;
 import com.terracottatech.search.AbstractNVPair.StringNVPair;
+import com.terracottatech.search.AbstractNVPair.ValueIdNVPair;
 import com.terracottatech.search.LuceneIndexManager.IndexGroup;
 
 import java.io.BufferedInputStream;
@@ -236,15 +237,15 @@ class LuceneIndex {
     snapshotter.release();
   }
 
-  private void addPendingContext(ProcessingContext metaDataContext) {
+  private void addPendingContext(ProcessingContext context) {
     if (useCommitThread) {
       synchronized (this) {
-        pending.add(metaDataContext);
+        pending.add(context);
       }
       committer.compareAndSet(null, s_commitThreadPool.submit(new CommitTask()));
 
     } else {
-      metaDataContext.processed();
+      context.processed();
     }
   }
 
@@ -351,6 +352,9 @@ class LuceneIndex {
         }
       case BYTE:
         return Byte.valueOf(attrValue);
+      case BYTE_ARRAY:
+        // XXX: this is an unexpected type!
+        throw new AssertionError(type);
       case CHAR:
         return new Character((char) Integer.valueOf(attrValue).intValue());
       case DATE:
@@ -373,25 +377,27 @@ class LuceneIndex {
         return attrValue;
       case NULL:
         throw new AssertionError();
+      case VALUE_ID:
+        return new ValueID(Long.valueOf(attrValue));
     }
 
     throw new AssertionError(type);
   }
 
-  void remove(Object key, ProcessingContext metaDataContext) throws IndexException {
+  void remove(String key, ProcessingContext context) throws IndexException {
     assert accessor == Thread.currentThread() : accessor.toString();
 
     try {
-      writer.deleteDocuments(new Term(KEY_FIELD_NAME, (String) key));
+      writer.deleteDocuments(new Term(KEY_FIELD_NAME, key));
     } catch (Exception e) {
-      metaDataContext.processed();
+      context.processed();
       throw new IndexException(e);
     }
 
-    addPendingContext(metaDataContext);
+    addPendingContext(context);
   }
 
-  void removeIfValueEqual(Map<String, ValueID> toRemove, ProcessingContext metaDataContext) throws IndexException {
+  void removeIfValueEqual(Map<String, ValueID> toRemove, ProcessingContext context) throws IndexException {
     IndexReader reader = null;
 
     try {
@@ -400,14 +406,14 @@ class LuceneIndex {
 
       for (Entry<String, ValueID> e : toRemove.entrySet()) {
         String stringKey = e.getKey();
-        ValueID value = e.getValue();
+        ValueID oidValue = e.getValue();
 
-        removeIfValueEqual(stringKey, value, reader, searcher);
+        removeIfValueEqual(stringKey, oidValue, reader, searcher);
       }
 
-      addPendingContext(metaDataContext);
+      addPendingContext(context);
     } catch (Exception e) {
-      metaDataContext.processed();
+      context.processed();
       throw new IndexException(e);
     } finally {
       if (reader != null) {
@@ -431,69 +437,68 @@ class LuceneIndex {
     writer.deleteDocuments(query);
   }
 
-  void clear(long segmentOid, ProcessingContext metaDataContext) throws IndexException {
+  void clear(long segmentOid, ProcessingContext context) throws IndexException {
     try {
       writer
           .deleteDocuments(NumericRangeQuery.newLongRange(SEGMENT_OID_FIELD_NAME, segmentOid, segmentOid, true, true));
     } catch (Exception e) {
-      metaDataContext.processed();
+      context.processed();
       throw new IndexException(e);
     }
 
-    addPendingContext(metaDataContext);
+    addPendingContext(context);
   }
 
-  void replaceIfPresent(Object key, ValueID value, Object oldValue, List<NVPair> attributes, long segmentOid,
-                        ProcessingContext metaDataContext) throws IndexException {
+  void replaceIfPresent(String key, ValueID value, Object oldValue, List<NVPair> attributes, long segmentOid,
+                        ProcessingContext context) throws IndexException {
     try {
       ValueID existingValue = valueForKey(key);
       if (existingValue == null || !existingValue.equals(oldValue)) {
-        metaDataContext.processed();
+        context.processed();
         return;
       }
 
       upsertInternal(key, value, attributes, segmentOid, true);
-      addPendingContext(metaDataContext);
+      addPendingContext(context);
     } catch (IndexException ie) {
-      metaDataContext.processed();
+      context.processed();
       throw ie;
     }
   }
 
-  public void update(Object key, ValueID value, List<NVPair> attributes, long segmentOid,
-                     ProcessingContext metaDataContext) throws IndexException {
+  public void update(String key, ValueID value, List<NVPair> attributes, long segmentOid, ProcessingContext context)
+      throws IndexException {
     assert accessor == Thread.currentThread() : accessor.toString();
     try {
       upsertInternal(key, value, attributes, segmentOid, false);
-      addPendingContext(metaDataContext);
+      addPendingContext(context);
     } catch (IndexException ie) {
-      metaDataContext.processed();
+      context.processed();
       throw ie;
     }
   }
 
-  public void insert(Object key, ValueID value, List<NVPair> attributes, long segmentOid,
-                     ProcessingContext metaDataContext) throws IndexException {
+  public void insert(String key, ValueID value, List<NVPair> attributes, long segmentOid, ProcessingContext context)
+      throws IndexException {
     assert accessor == Thread.currentThread() : accessor.toString();
     try {
       upsertInternal(key, value, attributes, segmentOid, true);
-      addPendingContext(metaDataContext);
+      addPendingContext(context);
     } catch (IndexException ie) {
-      metaDataContext.processed();
+      context.processed();
       throw ie;
     }
 
   }
 
-  private void upsertInternal(Object key, ValueID value, List<NVPair> attributes, long segmentOid, boolean isInsert)
+  private void upsertInternal(String key, ValueID value, List<NVPair> attributes, long segmentOid, boolean isInsert)
       throws IndexException {
 
     idxGroup.checkSchema(attributes);
 
     Document doc = new Document();
 
-    // XXX: need a way to encode DSO literal vs. ObjectID keys here -- certainly can't assume String
-    doc.add(new Field(KEY_FIELD_NAME, (String) key, Field.Store.YES, Field.Index.NOT_ANALYZED_NO_NORMS));
+    doc.add(new Field(KEY_FIELD_NAME, key, Field.Store.YES, Field.Index.NOT_ANALYZED_NO_NORMS));
 
     doc.add(createNumericField(VALUE_FIELD_NAME).setLongValue(value.toLong()));
 
@@ -517,6 +522,8 @@ class LuceneIndex {
           ByteNVPair bytePair = (ByteNVPair) nvpair;
           doc.add(createNumericField(attrName).setIntValue(bytePair.getValue()));
           break;
+        case BYTE_ARRAY:
+          throw new IndexException("We do not index byte array's. Attribute name: " + attrName);
         case CHAR:
           CharNVPair charPair = (CharNVPair) nvpair;
           doc.add(createNumericField(attrName).setIntValue(charPair.getValue()));
@@ -558,7 +565,11 @@ class LuceneIndex {
           doc.add(createField(attrName, stringNVPair.getValue(), Field.Index.ANALYZED_NO_NORMS));
           break;
         case NULL:
-          throw new IndexException("Null attributed not yet supported");
+          throw new AssertionError();
+        case VALUE_ID:
+          ValueIdNVPair oidNVPair = (ValueIdNVPair) nvpair;
+          doc.add(createNumericField(attrName).setLongValue(oidNVPair.getValue().toLong()));
+          break;
       }
     }
 
@@ -566,21 +577,23 @@ class LuceneIndex {
       if (isInsert) {
         writer.addDocument(doc);
       } else {
-        writer.updateDocument(new Term(KEY_FIELD_NAME, (String) key), doc);
+        writer.updateDocument(new Term(KEY_FIELD_NAME, key), doc);
       }
 
     } catch (Exception e) {
       throw new IndexException(e);
     }
+
+    // XXX: We'll want to optimize() the index occasionally
   }
 
-  private ValueID valueForKey(Object key) throws IndexException {
+  private ValueID valueForKey(String key) throws IndexException {
     IndexReader indexReader = null;
     try {
       indexReader = getNewReader();
       IndexSearcher searcher = new IndexSearcher(indexReader);
 
-      Query query = new TermQuery(new Term(KEY_FIELD_NAME, (String) key));
+      Query query = new TermQuery(new Term(KEY_FIELD_NAME, key));
 
       TopDocs docs = searcher.search(query, 2);
       if (docs.scoreDocs.length > 1) { throw new AssertionError("more than one result for key: " + key); }
@@ -589,8 +602,8 @@ class LuceneIndex {
 
       int docId = docs.scoreDocs[0].doc;
       Document doc = indexReader.document(docId, VALUE_ONLY_SELECTOR);
-      long id = (Long) getFieldValue(doc, VALUE_FIELD_NAME, ValueType.LONG);
-      return new ValueID(id);
+      long oid = (Long) getFieldValue(doc, VALUE_FIELD_NAME, ValueType.LONG);
+      return new ValueID(oid);
     } catch (IOException e) {
       throw new IndexException(e);
     } finally {
@@ -675,6 +688,9 @@ class LuceneIndex {
         return SortField.INT;
       case BYTE:
         return SortField.INT;
+      case BYTE_ARRAY:
+        // XXX: unexpected type!
+        throw new AssertionError(valueType);
       case CHAR:
         return SortField.INT;
       case DATE:
@@ -697,6 +713,8 @@ class LuceneIndex {
         return SortField.STRING;
       case NULL:
         throw new AssertionError();
+      case VALUE_ID:
+        return SortField.LONG;
     }
 
     throw new AssertionError("unexpected sort type: " + valueType);
@@ -771,12 +789,10 @@ class LuceneIndex {
 
   private static class SimpleCollector extends Collector implements DocIdList {
 
-    private final int           maxResults;
-
-    // XXX: Previous implementation used a TIntArrayList which is more space efficient
-    private final List<Integer> ids  = new ArrayList<Integer>();
-    private final boolean       unbounded;
-    private int                 base = 0;
+    private final int     maxResults;
+    private final IntList ids  = new IntList();
+    private final boolean unbounded;
+    private int           base = 0;
 
     private SimpleCollector(int maxResults) {
       this.maxResults = maxResults;
@@ -851,6 +867,40 @@ class LuceneIndex {
     @Override
     public long skip(long n) {
       throw new UnsupportedOperationException();
+    }
+
+  }
+
+  private static class IntList {
+
+    private int   size = 0;
+    private int[] data;
+
+    IntList() {
+      this(16);
+    }
+
+    IntList(int cap) {
+      data = new int[cap];
+    }
+
+    int size() {
+      return size;
+    }
+
+    void add(int toAdd) {
+      if (size == data.length) {
+        int[] temp = new int[data.length * 2];
+        System.arraycopy(data, 0, temp, 0, data.length);
+        data = temp;
+      }
+
+      data[size++] = toAdd;
+
+    }
+
+    int get(int index) {
+      return data[index];
     }
 
   }
