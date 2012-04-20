@@ -73,36 +73,36 @@ import java.util.concurrent.atomic.AtomicReference;
 
 class LuceneIndex {
 
-  private static final ExecutorService     s_commitThreadPool     = Executors.newFixedThreadPool(1);
+  private static final ExecutorService     s_commitThreadPool    = Executors.newFixedThreadPool(1);
 
-  private static final String              TERRACOTTA_INIT_FILE   = "__terracotta_init.txt";
+  private static final String              TERRACOTTA_INIT_FILE  = "__terracotta_init.txt";
 
-  static final String                      KEY_FIELD_NAME         = "__TC_KEY_FIELD";
-  static final String                      VALUE_FIELD_NAME       = "__TC_VALUE_FIELD";
-  static final String                      SEGMENT_OID_FIELD_NAME = "__TC_SEGMENT_OID";
+  static final String                      KEY_FIELD_NAME        = "__TC_KEY_FIELD";
+  static final String                      VALUE_FIELD_NAME      = "__TC_VALUE_FIELD";
+  static final String                      SEGMENT_ID_FIELD_NAME = "__TC_SEGMENT_ID";
 
-  private static final FieldSelector       VALUE_ONLY_SELECTOR    = valueOnlySelector();
+  private static final FieldSelector       VALUE_ONLY_SELECTOR   = valueOnlySelector();
 
-  private final Analyzer                   analyzer               = new LowerCaseKeywordAnalyzer();
+  private final Analyzer                   analyzer              = new LowerCaseKeywordAnalyzer();
   private final Directory                  luceneDirectory;
   private final SnapshotDeletionPolicy     snapshotter;
   private final IndexWriter                writer;
   private final File                       path;
   private final String                     name;
-  private final AtomicReference<Future<?>> committer              = new AtomicReference<Future<?>>();
-  private final AtomicBoolean              shutdown               = new AtomicBoolean();
+  private final AtomicReference<Future<?>> committer             = new AtomicReference<Future<?>>();
+  private final AtomicBoolean              shutdown              = new AtomicBoolean();
   private final Logger                     logger;
   private final boolean                    useCommitThread;
 
-  private List<ProcessingContext>          pending                = newPendingList();
+  private List<ProcessingContext>          pending               = newPendingList();
   private final IndexGroup                 idxGroup;
 
-  private final Thread                     accessor               = Thread.currentThread();
+  private final Thread                     accessor              = Thread.currentThread();
 
-  private boolean                          snapshotTaken          = false;                           // XXX - change to
-                                                                                                      // snapshot name
-                                                                                                      // when upgrading
-                                                                                                      // to Lucene 3.5+
+  private boolean                          snapshotTaken         = false;                           // XXX - change to
+                                                                                                     // snapshot name
+                                                                                                     // when upgrading
+                                                                                                     // to Lucene 3.5+
 
   LuceneIndex(Directory directory, String name, File path, boolean useCommitThread, IndexGroup parent,
               Configuration cfg, LoggerFactory loggerFactory) throws IndexException {
@@ -439,8 +439,7 @@ class LuceneIndex {
 
   void clear(long segmentOid, ProcessingContext context) throws IndexException {
     try {
-      writer
-          .deleteDocuments(NumericRangeQuery.newLongRange(SEGMENT_OID_FIELD_NAME, segmentOid, segmentOid, true, true));
+      writer.deleteDocuments(NumericRangeQuery.newLongRange(SEGMENT_ID_FIELD_NAME, segmentOid, segmentOid, true, true));
     } catch (Exception e) {
       context.processed();
       throw new IndexException(e);
@@ -503,7 +502,7 @@ class LuceneIndex {
     doc.add(createNumericField(VALUE_FIELD_NAME).setLongValue(value.toLong()));
 
     // this field is used to implement per-CDSM segment clearing
-    doc.add(createNumericField(SEGMENT_OID_FIELD_NAME).setLongValue(segmentOid));
+    doc.add(createNumericField(SEGMENT_ID_FIELD_NAME).setLongValue(segmentOid));
 
     for (NVPair nvpair : attributes) {
       String attrName = nvpair.getName();

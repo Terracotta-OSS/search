@@ -256,10 +256,10 @@ public class LuceneIndexManager {
     }
   }
 
-  public void remove(String indexName, String key, long segmentOid, ProcessingContext context) throws IndexException {
+  public void remove(String indexName, String key, long segmentId, ProcessingContext context) throws IndexException {
     IndexGroup group = getGroup(indexName);
     if (group != null) {
-      group.remove(key, segmentOid, context);
+      group.remove(key, segmentId, context);
     } else {
       logger.warn("Remove failed: no such index group [" + indexName + "] exists");
       context.processed();
@@ -267,44 +267,44 @@ public class LuceneIndexManager {
   }
 
   public void replace(String indexName, String key, ValueID value, Object previousValue, List<NVPair> attributes,
-                      long segmentOid, ProcessingContext context) throws IndexException {
+                      long segmentId, ProcessingContext context) throws IndexException {
     IndexGroup group = getGroup(indexName);
     if (group != null) {
-      group.replaceIfPresent(key, value, previousValue, attributes, segmentOid, context);
+      group.replaceIfPresent(key, value, previousValue, attributes, segmentId, context);
     } else {
       logger.warn("Replace failed: no such index group [" + indexName + "] exists");
       context.processed();
     }
   }
 
-  public void removeIfValueEqual(String indexName, Map<String, ValueID> toRemove, long segmentOid,
+  public void removeIfValueEqual(String indexName, Map<String, ValueID> toRemove, long segmentId,
                                  ProcessingContext context) throws IndexException {
     IndexGroup group = getGroup(indexName);
     if (group != null) {
-      group.removeIfValueEqual(toRemove, segmentOid, context);
+      group.removeIfValueEqual(toRemove, segmentId, context);
     } else {
       logger.warn("RemoveIfValueEqual failed: no such index group [" + indexName + "] exists");
       context.processed();
     }
   }
 
-  public void update(String indexName, String key, ValueID value, List<NVPair> attributes, long segmentOid,
+  public void update(String indexName, String key, ValueID value, List<NVPair> attributes, long segmentId,
                      ProcessingContext context) throws IndexException {
     // Get or create here b/c draining the journal will do a blind update due to a possible race with index sync
     IndexGroup group = getOrCreateGroup(indexName, attributes);
-    group.update(key, value, attributes, segmentOid, context);
+    group.update(key, value, attributes, segmentId, context);
   }
 
-  public void insert(String indexName, String key, ValueID value, List<NVPair> attributes, long segmentOid,
+  public void insert(String indexName, String key, ValueID value, List<NVPair> attributes, long segmentId,
                      ProcessingContext context) throws IndexException {
     IndexGroup group = getOrCreateGroup(indexName, attributes);
-    group.insert(key, value, attributes, segmentOid, context);
+    group.insert(key, value, attributes, segmentId, context);
   }
 
-  public void clear(String indexName, long segmentOid, ProcessingContext context) throws IndexException {
+  public void clear(String indexName, long segmentId, ProcessingContext context) throws IndexException {
     IndexGroup group = getGroup(indexName);
     if (group != null) {
-      group.clear(segmentOid, context);
+      group.clear(segmentId, context);
     } else {
       logger.warn("Clear failed: no such index group [" + indexName + "] exists");
       context.processed();
@@ -451,8 +451,8 @@ public class LuceneIndexManager {
       return indices.get(getIndexId(segmentId));
     }
 
-    private int getIndexId(long segmentOid) {
-      return (int) (Math.abs(segmentOid) % perCacheIdxCt);
+    private int getIndexId(long segmentId) {
+      return (int) (Math.abs(segmentId) % perCacheIdxCt);
     }
 
     private InputStream getIndexFile(String indexId, String fileName) throws IOException {
@@ -529,67 +529,67 @@ public class LuceneIndexManager {
     }
 
     private void replaceIfPresent(String key, ValueID value, Object previousValue, List<NVPair> attributes,
-                                  long segmentOid, ProcessingContext context) throws IndexException {
-      LuceneIndex index = getIndex(segmentOid);
+                                  long segmentId, ProcessingContext context) throws IndexException {
+      LuceneIndex index = getIndex(segmentId);
       if (index != null) {
-        index.replaceIfPresent(key, value, previousValue, attributes, segmentOid, context);
+        index.replaceIfPresent(key, value, previousValue, attributes, segmentId, context);
       } else logger.warn(String.format("Unable to run replaceIfPresent: segment %s has no index in group %s",
-                                       segmentOid, groupName));
+                                       segmentId, groupName));
     }
 
-    private void removeIfValueEqual(Map<String, ValueID> toRemove, long segmentOid, ProcessingContext context)
+    private void removeIfValueEqual(Map<String, ValueID> toRemove, long segmentId, ProcessingContext context)
         throws IndexException {
-      LuceneIndex index = getIndex(segmentOid);
+      LuceneIndex index = getIndex(segmentId);
       if (index != null) {
         index.removeIfValueEqual(toRemove, context);
       } else logger.warn(String.format("Unable to run removeIfValueEqual: segment %s has no index in group %s",
-                                       segmentOid, groupName));
+                                       segmentId, groupName));
     }
 
-    private void remove(String key, long segmentOid, ProcessingContext context) throws IndexException {
-      LuceneIndex index = getIndex(segmentOid);
+    private void remove(String key, long segmentId, ProcessingContext context) throws IndexException {
+      LuceneIndex index = getIndex(segmentId);
       if (index != null) {
         index.remove(key, context);
-      } else logger.warn(String.format("Unable to run remove: segment %s has no index in group %s", segmentOid,
+      } else logger.warn(String.format("Unable to run remove: segment %s has no index in group %s", segmentId,
                                        groupName));
 
     }
 
-    private void clear(long segmentOid, ProcessingContext context) throws IndexException {
-      LuceneIndex index = getIndex(segmentOid);
+    private void clear(long segmentId, ProcessingContext context) throws IndexException {
+      LuceneIndex index = getIndex(segmentId);
       if (index != null) {
-        index.clear(segmentOid, context);
-      } else logger.warn(String.format("Unable to run clear: segment %s has no index in group %s", segmentOid,
-                                       groupName));
+        index.clear(segmentId, context);
+      } else logger.warn(String
+          .format("Unable to run clear: segment %s has no index in group %s", segmentId, groupName));
 
     }
 
-    private void update(String key, ValueID value, List<NVPair> attributes, long segmentOid, ProcessingContext context)
+    private void update(String key, ValueID value, List<NVPair> attributes, long segmentId, ProcessingContext context)
         throws IndexException {
-      LuceneIndex index = getIndex(segmentOid);
+      LuceneIndex index = getIndex(segmentId);
       if (index == null) {
         try {
           // Create here, similar to update() one level higher
-          index = createIndex(segmentOid, false);
+          index = createIndex(segmentId, false);
         } catch (IOException x) {
           throw new IndexException(x);
         }
       }
-      index.update(key, value, attributes, segmentOid, context);
+      index.update(key, value, attributes, segmentId, context);
     }
 
-    private void insert(String key, ValueID value, List<NVPair> attributes, long segmentOid, ProcessingContext context)
+    private void insert(String key, ValueID value, List<NVPair> attributes, long segmentId, ProcessingContext context)
         throws IndexException {
-      LuceneIndex index = getIndex(segmentOid);
+      LuceneIndex index = getIndex(segmentId);
       if (index == null) {
         try {
-          index = createIndex(segmentOid, false);
+          index = createIndex(segmentId, false);
         } catch (IOException ioe) {
           throw new IndexException(ioe);
         }
       }
 
-      index.insert(key, value, attributes, segmentOid, context);
+      index.insert(key, value, attributes, segmentId, context);
     }
 
     private Map<String, Collection<Aggregator>> createAggregators(List<NVPair> requestedAggregators) {
@@ -794,16 +794,16 @@ public class LuceneIndexManager {
       return new File(indexDir, Util.sanitizeCacheName(groupName));
     }
 
-    private LuceneIndex createIndex(long segmentOid, boolean load) throws IndexException, IOException {
+    private LuceneIndex createIndex(long segmentId, boolean load) throws IndexException, IOException {
       synchronized (LuceneIndexManager.this) {
         if (shutdown) throw new IndexException("Index manager shutdown");
 
         LuceneIndex index = null;
-        if ((index = getIndex(segmentOid)) != null) { return index; }
+        if ((index = getIndex(segmentId)) != null) { return index; }
 
         File groupPath = getPath();
 
-        int idxSegment = getIndexId(segmentOid);
+        int idxSegment = getIndexId(segmentId);
         String idxStr = String.valueOf(idxSegment);
         File path = new File(groupPath, idxStr);
 
@@ -829,7 +829,7 @@ public class LuceneIndexManager {
         String attrName = nvpair.getName();
 
         if (attrName.equals(LuceneIndex.KEY_FIELD_NAME) || attrName.equals(LuceneIndex.VALUE_FIELD_NAME)
-            || attrName.equals(LuceneIndex.SEGMENT_OID_FIELD_NAME)) {
+            || attrName.equals(LuceneIndex.SEGMENT_ID_FIELD_NAME)) {
           // XXX: this assertion needs coverage at a higher level too (eg. ehcache level maybe?)
           throw new IndexException("Illegal attribute name present: " + attrName);
         }
