@@ -51,40 +51,40 @@ public abstract class AbstractNVPair implements NVPair {
 
   public abstract ValueType getType();
 
-  private static class Template extends AbstractNVPair {
-
-    Template() {
-      super("");
-    }
-
-    @Override
-    public String valueAsString() {
-      throw new AssertionError();
-    }
-
-    @Override
-    public ValueType getType() {
-      throw new AssertionError();
-    }
-
-    @Override
-    boolean basicEquals(NVPair other) {
-      throw new AssertionError();
-    }
-
-    public Object getObjectValue() {
-      throw new AssertionError();
-    }
-
-    @Override
-    public NVPair cloneWithNewName(String newName) {
-      throw new AssertionError();
-    }
-
-    public NVPair cloneWithNewValue(Object newValue) {
-      throw new AssertionError();
-    }
-  }
+  // private static class Template extends AbstractNVPair {
+  //
+  // Template() {
+  // super("");
+  // }
+  //
+  // @Override
+  // public String valueAsString() {
+  // throw new AssertionError();
+  // }
+  //
+  // @Override
+  // public ValueType getType() {
+  // throw new AssertionError();
+  // }
+  //
+  // @Override
+  // boolean basicEquals(NVPair other) {
+  // throw new AssertionError();
+  // }
+  //
+  // public Object getObjectValue() {
+  // throw new AssertionError();
+  // }
+  //
+  // @Override
+  // public NVPair cloneWithNewName(String newName) {
+  // throw new AssertionError();
+  // }
+  //
+  // public NVPair cloneWithNewValue(Object newValue) {
+  // throw new AssertionError();
+  // }
+  // }
 
   public static class ByteNVPair extends AbstractNVPair {
     private final byte value;
