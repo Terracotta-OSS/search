@@ -457,7 +457,7 @@ class LuceneIndex {
         return;
       }
 
-      upsertInternal(key, value, attributes, segmentOid, true);
+      upsertInternal(key, value, attributes, segmentOid, false);
       addPendingContext(context);
     } catch (IndexException ie) {
       context.processed();
