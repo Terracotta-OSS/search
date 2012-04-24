@@ -525,7 +525,7 @@ public class LuceneIndexManagerTest extends TestCase {
 
   }
 
-  public void testReplace() throws IOException, IndexException {
+  public void testReplace() throws IndexException {
     assertEquals(0, idxManager.getSearchIndexNames().length);
     List<NVPair> attributes = new ArrayList<NVPair>();
 
