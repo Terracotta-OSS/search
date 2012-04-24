@@ -525,6 +525,39 @@ public class LuceneIndexManagerTest extends TestCase {
 
   }
 
+  public void testReplace() throws IOException, IndexException {
+    assertEquals(0, idxManager.getSearchIndexNames().length);
+    List<NVPair> attributes = new ArrayList<NVPair>();
+
+    attributes.add(new AbstractNVPair.StringNVPair("attr1", "foo"));
+
+    idxManager.replace("foo", "replace", new ValueID(2), new ValueID(1), attributes, 0, new NullProcessingContext());
+
+    List<IndexQueryResult> res = searchResults();
+    assertEquals(0, res.size());
+    idxManager.insert("foo", "replace", new ValueID(1), attributes, 0, new NullProcessingContext());
+    res = searchResults();
+    assertEquals(1, res.size());
+
+    for (int i = 0; i < 10; i++) {
+      idxManager.replace("foo", "replace", new ValueID(i + 2), new ValueID(i + 1), attributes, 0,
+                         new NullProcessingContext());
+    }
+    assertEquals(1, res.size());
+  }
+
+  private List<IndexQueryResult> searchResults() throws IndexException {
+    Set<String> attributeSet = new HashSet<String>();
+    attributeSet.add("attr1");
+
+    LinkedList queryStack = new LinkedList();
+    queryStack.addFirst(AbstractNVPair.createNVPair("attr1", "foo"));
+    queryStack.addFirst(StackOperations.TERM);
+    SearchResult context = idxManager.searchIndex("foo", queryStack, true, true, attributeSet, new ArrayList<NVPair>(),
+                                                  new ArrayList<NVPair>(), -1);
+    return context.getQueryResults();
+  }
+
   private File getLuceneDir() throws IOException {
     File dir = new File(getTempDirectory(), getName());
     Util.cleanDirectory(dir);
