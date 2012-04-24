@@ -3,8 +3,9 @@
  */
 package com.terracottatech.search;
 
-// XXX: should this be an interface?
-public class ValueID {
+import java.io.Serializable;
+
+public class ValueID implements Serializable {
 
   public static final ValueID NULL_ID = new ValueID(-1);
 
