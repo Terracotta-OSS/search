@@ -5,6 +5,10 @@ package com.terracottatech.search.aggregator;
 
 import com.terracottatech.search.ValueType;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
 public class FloatAverage extends Average {
 
   private float sum   = 0;
@@ -40,5 +44,18 @@ public class FloatAverage extends Average {
     } else {
       return Float.valueOf(sum / count);
     }
+  }
+
+  @Override
+  Aggregator deserializeData(DataInput input) throws IOException {
+    sum = input.readFloat();
+    count = input.readInt();
+    return this;
+  }
+
+  @Override
+  void serializeData(DataOutput output) throws IOException {
+    output.writeFloat(sum);
+    output.writeInt(count);
   }
 }

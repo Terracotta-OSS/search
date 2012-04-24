@@ -15,24 +15,39 @@ public class Configuration {
   private int               mergeFactor             = LogMergePolicy.DEFAULT_MERGE_FACTOR;
   private int               maxMergeDocs            = LogMergePolicy.DEFAULT_MAX_MERGE_DOCS;
 
+  private final int         indexesPerCache;
+  private final int         maxConcurrentQueries;
+  private final boolean     useOffHeap;
+  private final boolean     useRamDir;
+  private final boolean     useCommitThread;
+
+  public Configuration(int indexesPerCache, int maxConcurrentQueries, boolean useOffHeap, boolean useRamDir,
+                       boolean useCommitThread) {
+    this.indexesPerCache = indexesPerCache;
+    this.maxConcurrentQueries = maxConcurrentQueries;
+    this.useOffHeap = useOffHeap;
+    this.useRamDir = useRamDir;
+    this.useCommitThread = useCommitThread;
+  }
+
   public boolean useRamDir() {
-    throw new AssertionError();
+    return useRamDir;
   }
 
   public boolean useOffHeap() {
-    throw new AssertionError();
+    return useOffHeap;
   }
 
   public int maxConcurrentQueries() {
-    throw new AssertionError();
+    return maxConcurrentQueries;
   }
 
-  public int indexesPerCahce() {
-    throw new AssertionError();
+  public int indexesPerCache() {
+    return indexesPerCache;
   }
 
   public boolean useCommitThread() {
-    throw new AssertionError();
+    return useCommitThread;
   }
 
   public float getMaxRamBufferSize() {

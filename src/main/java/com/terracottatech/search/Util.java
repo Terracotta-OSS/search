@@ -48,6 +48,14 @@ public class Util {
   }
 
   public static void deleteDirectory(File dir) throws IOException {
+    cleanDirectory(dir, true);
+  }
+
+  public static void cleanDirectory(File dir) throws IOException {
+    cleanDirectory(dir, false);
+  }
+
+  private static void cleanDirectory(File dir, boolean deleteTop) throws IOException {
     if (!dir.exists()) { return; }
 
     if (dir.isFile()) { throw new IOException(dir + " is not a directory"); }
@@ -61,8 +69,10 @@ public class Util {
       }
     }
 
-    boolean deleted = dir.delete();
-    if (!deleted) { throw new IOException("Cannot delete " + dir); }
+    if (deleteTop) {
+      boolean deleted = dir.delete();
+      if (!deleted) { throw new IOException("Cannot delete " + dir); }
+    }
   }
 
   public static void copyFile(File src, File dest) throws IOException {

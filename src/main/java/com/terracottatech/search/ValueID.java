@@ -19,6 +19,10 @@ public class ValueID {
     return getClass().getSimpleName() + "(" + value + ")";
   }
 
+  public boolean isNull() {
+    return this == NULL_ID;
+  }
+
   @Override
   public int hashCode() {
     final int prime = 31;

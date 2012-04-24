@@ -5,6 +5,10 @@ package com.terracottatech.search.aggregator;
 
 import com.terracottatech.search.ValueType;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
 public class LongSum extends Sum {
 
   private boolean used = false;
@@ -42,4 +46,16 @@ public class LongSum extends Sum {
     }
   }
 
+  @Override
+  public Aggregator deserializeData(DataInput input) throws IOException {
+    used = input.readBoolean();
+    sum = input.readLong();
+    return this;
+  }
+
+  @Override
+  public void serializeData(DataOutput output) throws IOException {
+    output.writeBoolean(used);
+    output.writeLong(sum);
+  }
 }

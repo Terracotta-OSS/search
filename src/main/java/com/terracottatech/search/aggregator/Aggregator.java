@@ -5,6 +5,9 @@ package com.terracottatech.search.aggregator;
 
 import com.terracottatech.search.ValueType;
 
+import java.io.DataOutput;
+import java.io.IOException;
+
 public interface Aggregator {
 
   void accept(Object input) throws IllegalArgumentException;
@@ -16,4 +19,6 @@ public interface Aggregator {
   Object getResult();
 
   ValueType getType();
+
+  void serializeTo(DataOutput out) throws IOException;
 }

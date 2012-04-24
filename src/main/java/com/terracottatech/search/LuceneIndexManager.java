@@ -73,11 +73,11 @@ public class LuceneIndexManager {
     this.loggerFactory = loggerFactory;
     this.cfg = cfg;
     this.logger = loggerFactory.getLogger(LuceneIndexManager.class);
-    this.perCacheIdxCt = cfg.indexesPerCahce();
+    this.perCacheIdxCt = cfg.indexesPerCache();
 
     logger.info("Lucene version: " + Constants.LUCENE_MAIN_VERSION);
 
-    queryThreadPool = createQueryThreadPool(cfg.maxConcurrentQueries(), cfg.indexesPerCahce());
+    queryThreadPool = createQueryThreadPool(cfg.maxConcurrentQueries(), cfg.indexesPerCache());
 
     this.indexDir = indexDir;
 

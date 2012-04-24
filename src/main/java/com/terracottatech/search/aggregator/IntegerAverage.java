@@ -5,6 +5,10 @@ package com.terracottatech.search.aggregator;
 
 import com.terracottatech.search.ValueType;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
 public class IntegerAverage extends Average {
 
   private long sum   = 0;
@@ -42,4 +46,16 @@ public class IntegerAverage extends Average {
     }
   }
 
+  @Override
+  Aggregator deserializeData(DataInput input) throws IOException {
+    sum = input.readLong();
+    count = input.readInt();
+    return this;
+  }
+
+  @Override
+  void serializeData(DataOutput output) throws IOException {
+    output.writeLong(sum);
+    output.writeInt(count);
+  }
 }

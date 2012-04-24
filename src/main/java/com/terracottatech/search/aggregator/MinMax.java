@@ -6,6 +6,9 @@ package com.terracottatech.search.aggregator;
 import com.terracottatech.search.AggregatorOperations;
 import com.terracottatech.search.ValueType;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+
 public class MinMax extends AbstractAggregator {
 
   private final boolean min;
@@ -71,4 +74,16 @@ public class MinMax extends AbstractAggregator {
     throw new IllegalArgumentException("Value is not Comparable: " + o.getClass());
   }
 
+  @Override
+  Aggregator deserializeData(DataInput input) {
+    if (true) throw new AssertionError();
+    // result = (Comparable) AbstractNVPair.deserializeInstance(input, NULL_SERIALIZER).getObjectValue();
+    return this;
+  }
+
+  @Override
+  void serializeData(DataOutput output) {
+    if (true) throw new AssertionError();
+    // AbstractNVPair.createNVPair(getAttributeName(), result, getType()).serializeTo(output, NULL_SERIALIZER);
+  }
 }

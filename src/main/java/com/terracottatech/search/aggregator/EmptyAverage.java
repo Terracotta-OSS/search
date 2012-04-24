@@ -3,6 +3,9 @@
  */
 package com.terracottatech.search.aggregator;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 
 public class EmptyAverage extends Average {
 
@@ -40,4 +43,23 @@ public class EmptyAverage extends Average {
     }
   }
 
+  @Override
+  Aggregator deserializeData(DataInput input) throws IOException {
+    if (input.readBoolean()) {
+      return (Aggregator) delegate.deserializeFrom(input);
+    } else {
+      delegate = null;
+      return this;
+    }
+  }
+
+  @Override
+  void serializeData(DataOutput output) throws IOException {
+    if (delegate == null) {
+      output.writeBoolean(false);
+    } else {
+      output.writeBoolean(true);
+      delegate.serializeTo(output);
+    }
+  }
 }

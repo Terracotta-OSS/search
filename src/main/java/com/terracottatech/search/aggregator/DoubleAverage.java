@@ -5,6 +5,10 @@ package com.terracottatech.search.aggregator;
 
 import com.terracottatech.search.ValueType;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
 public class DoubleAverage extends Average {
 
   private double sum   = 0;
@@ -42,4 +46,16 @@ public class DoubleAverage extends Average {
     }
   }
 
+  @Override
+  Aggregator deserializeData(DataInput input) throws IOException {
+    sum = input.readDouble();
+    count = input.readInt();
+    return this;
+  }
+
+  @Override
+  void serializeData(DataOutput output) throws IOException {
+    output.writeDouble(sum);
+    output.writeInt(count);
+  }
 }
