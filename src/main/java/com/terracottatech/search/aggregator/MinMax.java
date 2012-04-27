@@ -3,11 +3,13 @@
  */
 package com.terracottatech.search.aggregator;
 
+import com.terracottatech.search.AbstractNVPair;
 import com.terracottatech.search.AggregatorOperations;
 import com.terracottatech.search.ValueType;
 
 import java.io.DataInput;
 import java.io.DataOutput;
+import java.io.IOException;
 
 public class MinMax extends AbstractAggregator {
 
@@ -29,6 +31,10 @@ public class MinMax extends AbstractAggregator {
   }
 
   public Comparable getResult() {
+    if (getType() == ValueType.ENUM) {
+      // this needs to happen here to happen in the correct classloader context (not in deserialize)
+      return (Comparable) AbstractNVPair.createNVPair(getAttributeName(), result, getType()).getObjectValue();
+    }
     return result;
   }
 
@@ -75,15 +81,121 @@ public class MinMax extends AbstractAggregator {
   }
 
   @Override
-  Aggregator deserializeData(DataInput input) {
-    if (true) throw new AssertionError();
-    // result = (Comparable) AbstractNVPair.deserializeInstance(input, NULL_SERIALIZER).getObjectValue();
-    return this;
+  Aggregator deserializeData(DataInput input) throws IOException {
+    boolean isNull = input.readBoolean();
+    if (isNull) {
+      result = null;
+      return this;
+    }
+
+    switch (getType()) {
+      case BOOLEAN:
+        result = input.readBoolean();
+        return this;
+      case BYTE:
+        result = input.readByte();
+        return this;
+      case BYTE_ARRAY:
+        throw new AssertionError();
+      case CHAR:
+        result = input.readChar();
+        return this;
+      case DATE:
+        result = new java.util.Date(input.readLong());
+        return this;
+      case DOUBLE:
+        result = input.readDouble();
+        return this;
+      case ENUM:
+        result = input.readUTF();
+        return this;
+      case FLOAT:
+        result = input.readFloat();
+        return this;
+      case INT:
+        result = input.readInt();
+        return this;
+      case LONG:
+        result = input.readLong();
+        return this;
+      case NULL:
+        throw new AssertionError();
+      case SHORT:
+        result = input.readShort();
+        return this;
+      case SQL_DATE:
+        result = new java.sql.Date(input.readLong());
+        return this;
+      case STRING:
+        result = input.readUTF();
+        return this;
+      case VALUE_ID:
+        throw new AssertionError();
+    }
+
+    throw new AssertionError(getType());
   }
 
   @Override
-  void serializeData(DataOutput output) {
-    if (true) throw new AssertionError();
-    // AbstractNVPair.createNVPair(getAttributeName(), result, getType()).serializeTo(output, NULL_SERIALIZER);
+  void serializeData(DataOutput output) throws IOException {
+    if (result == null) {
+      output.writeBoolean(true);
+      return;
+    }
+
+    output.writeBoolean(false);
+
+    switch (getType()) {
+      case BOOLEAN:
+        output.writeBoolean((Boolean) result);
+        return;
+      case BYTE:
+        output.writeByte((Byte) result);
+        return;
+      case BYTE_ARRAY:
+        throw new AssertionError();
+      case CHAR:
+        output.writeChar((Character) result);
+        return;
+      case DATE:
+        output.writeLong(((java.util.Date) result).getTime());
+        return;
+      case DOUBLE:
+        output.writeDouble((Double) result);
+        return;
+      case ENUM:
+        if (result instanceof String) {
+          output.writeUTF((String) result);
+        } else if (result instanceof Enum) {
+          output.writeUTF(AbstractNVPair.enumStorageString((Enum) result));
+        } else {
+          throw new AssertionError("Unexpected type: " + result.getClass());
+        }
+        return;
+      case FLOAT:
+        output.writeFloat((Float) result);
+        return;
+      case INT:
+        output.writeInt((Integer) result);
+        return;
+      case LONG:
+        output.writeLong((Long) result);
+        return;
+      case NULL:
+        throw new AssertionError();
+      case SHORT:
+        output.writeShort((Short) result);
+        return;
+      case SQL_DATE:
+        output.writeLong(((java.sql.Date) result).getTime());
+        return;
+      case STRING:
+        output.writeUTF((String) result);
+        return;
+      case VALUE_ID:
+        throw new AssertionError();
+    }
+
+    throw new AssertionError(getType());
   }
 }

@@ -755,6 +755,10 @@ public abstract class AbstractNVPair implements NVPair {
     return enumStorageString(enumPair.getClassName(), enumPair.getOrdinal());
   }
 
+  public static String enumStorageString(Enum e) {
+    return enumStorageString(e.getClass().getName(), e.ordinal());
+  }
+
   private static String enumStorageString(String className, int ordinal) {
     StringBuilder sb = new StringBuilder(className.length() + 10);
     sb.append(className);
