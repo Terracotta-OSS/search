@@ -21,9 +21,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
 import java.util.Set;
 
 import junit.framework.TestCase;
+import junit.framework.Assert;
 
 public class LuceneIndexManagerTest extends TestCase {
 
@@ -544,6 +546,63 @@ public class LuceneIndexManagerTest extends TestCase {
                          new NullProcessingContext());
     }
     assertEquals(1, res.size());
+  }
+
+  public void testIncompleteIndexGroup() throws IndexException, IOException {
+    List<NVPair> attributes = new ArrayList<NVPair>();
+
+    attributes.add(new AbstractNVPair.StringNVPair("attr1", "foo"));
+    idxManager.insert("foo", "replace", new ObjectID(1), attributes, new ObjectID(0),
+                      new NullMetaDataProcessingContext());
+
+    FileFilter dirsOnly = new FileFilter() {
+      @Override
+      public boolean accept(File path) {
+        return path.isDirectory();
+      }
+    };
+
+    verifyClean(dirsOnly);
+
+    idxManager.init();
+
+    verifyClean(dirsOnly);
+
+    Random r = new Random();
+    int removeIndex = r.nextInt(idxCt);
+
+    FileUtils.deleteDirectory(new File(getLuceneDir().getAbsolutePath() + File.separator + "foo", Integer
+        .toString(removeIndex)));
+
+    idxManager = new LuceneIndexManager(getLuceneDir());
+    idxManager.init();
+    Assert.assertEquals(0, getLuceneDir().listFiles(dirsOnly).length);
+
+    idxManager.insert("xyz", "new value", new ObjectID(1), attributes, new ObjectID(0),
+                      new NullMetaDataProcessingContext());
+
+    verifyClean(dirsOnly);
+
+    FileUtils.forceDelete(new File(getLuceneDir().getAbsolutePath() + File.separator + "xyz" + File.separator
+                                   + Integer.toString(removeIndex), "__terracotta_init.txt"));
+
+    idxManager = new LuceneIndexManager(getLuceneDir());
+    idxManager.init();
+
+    Assert.assertEquals(0, getLuceneDir().listFiles(dirsOnly).length);
+
+  }
+
+  private void verifyClean(FileFilter dirsOnly) throws IOException {
+
+    Assert.assertEquals(1, getLuceneDir().listFiles(dirsOnly).length);
+
+    for (File dir : getLuceneDir().listFiles(dirsOnly)) {
+      Assert.assertEquals(idxCt, dir.listFiles(dirsOnly).length);
+      for (File subDir : dir.listFiles(dirsOnly)) {
+        Assert.assertTrue(LuceneIndex.hasInitFile(subDir));
+      }
+    }
   }
 
   private List<IndexQueryResult> searchResults() throws IndexException {
