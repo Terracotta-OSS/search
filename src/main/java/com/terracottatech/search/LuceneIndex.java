@@ -75,7 +75,7 @@ class LuceneIndex {
 
   private static final ExecutorService     s_commitThreadPool    = Executors.newFixedThreadPool(1);
 
-  private static final String              TERRACOTTA_INIT_FILE  = "__terracotta_init.txt";
+  static final String                      TERRACOTTA_INIT_FILE  = "__terracotta_init.txt";
 
   static final String                      KEY_FIELD_NAME        = "__TC_KEY_FIELD";
   static final String                      VALUE_FIELD_NAME      = "__TC_VALUE_FIELD";

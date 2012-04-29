@@ -24,16 +24,17 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
 
-import junit.framework.TestCase;
 import junit.framework.Assert;
+import junit.framework.TestCase;
 
 public class LuceneIndexManagerTest extends TestCase {
 
-  private static final int   idxCt = 4;
+  private static final int    idxCt         = 4;
 
-  private LuceneIndexManager idxManager;
-  private Configuration      cfg;
-  private LoggerFactory      loggerFactory;
+  private LuceneIndexManager  idxManager;
+
+  private final Configuration cfg           = new Configuration(idxCt, 10, false, false, true);
+  private final LoggerFactory loggerFactory = new SysOutLoggerFactory();
 
   @Override
   public void tearDown() throws Exception {
@@ -43,12 +44,11 @@ public class LuceneIndexManagerTest extends TestCase {
 
   @Override
   public void setUp() throws Exception {
-    loggerFactory = new SysOutLoggerFactory();
+    idxManager = newIndexManager(getLuceneDir(true));
+  }
 
-    // getProperties().setProperty(TCPropertiesConsts.SEARCH_LUCENE_INDEXES_PER_CACHE, String.valueOf(idxCt));
-    cfg = new Configuration(idxCt, 10, false, false, true);
-
-    idxManager = new LuceneIndexManager(getLuceneDir(), false, loggerFactory, cfg);
+  private LuceneIndexManager newIndexManager(File dir) {
+    return new LuceneIndexManager(dir, false, loggerFactory, cfg);
   }
 
   public void testOptimize() throws Exception {
@@ -66,7 +66,7 @@ public class LuceneIndexManagerTest extends TestCase {
   }
 
   public void testIncompleteIndex() throws Exception {
-    File luceneDir = getLuceneDir();
+    File luceneDir = getLuceneDir(false);
     File cacheDir = new File(luceneDir, "foo");
     File indexDir = new File(cacheDir, "1");
     assertFalse(cacheDir.exists());
@@ -103,7 +103,7 @@ public class LuceneIndexManagerTest extends TestCase {
   }
 
   public void testSplitIndex() throws Exception {
-    File luceneDir = getLuceneDir();
+    File luceneDir = getLuceneDir(false);
 
     assertEquals(0, idxManager.getSearchIndexNames().length);
 
@@ -131,10 +131,7 @@ public class LuceneIndexManagerTest extends TestCase {
 
   }
 
-  public void testSimpleSearch() throws IOException, IndexException {
-    File luceneDir = getLuceneDir();
-    Util.deleteDirectory(luceneDir);
-
+  public void testSimpleSearch() throws IndexException {
     assertEquals(0, idxManager.getSearchIndexNames().length);
     List<NVPair> attributes = new ArrayList<NVPair>();
 
@@ -549,12 +546,6 @@ public class LuceneIndexManagerTest extends TestCase {
   }
 
   public void testIncompleteIndexGroup() throws IndexException, IOException {
-    List<NVPair> attributes = new ArrayList<NVPair>();
-
-    attributes.add(new AbstractNVPair.StringNVPair("attr1", "foo"));
-    idxManager.insert("foo", "replace", new ObjectID(1), attributes, new ObjectID(0),
-                      new NullMetaDataProcessingContext());
-
     FileFilter dirsOnly = new FileFilter() {
       @Override
       public boolean accept(File path) {
@@ -562,35 +553,44 @@ public class LuceneIndexManagerTest extends TestCase {
       }
     };
 
+    List<NVPair> attributes = new ArrayList<NVPair>();
+
+    attributes.add(new AbstractNVPair.StringNVPair("attr1", "foo"));
+    idxManager.insert("foo", "replace", new ValueID(1), attributes, 0, new NullProcessingContext());
+    Assert.assertEquals(idxCt, new File(getLuceneDir(), "foo").listFiles(dirsOnly).length);
+
     verifyClean(dirsOnly);
 
     idxManager.init();
 
     verifyClean(dirsOnly);
+
+    idxManager.shutdown();
 
     Random r = new Random();
     int removeIndex = r.nextInt(idxCt);
 
-    FileUtils.deleteDirectory(new File(getLuceneDir().getAbsolutePath() + File.separator + "foo", Integer
+    Util.deleteDirectory(new File(getLuceneDir().getAbsolutePath() + File.separator + "foo", Integer
         .toString(removeIndex)));
 
-    idxManager = new LuceneIndexManager(getLuceneDir());
+    idxManager = newIndexManager(getLuceneDir());
     idxManager.init();
     Assert.assertEquals(0, getLuceneDir().listFiles(dirsOnly).length);
 
-    idxManager.insert("xyz", "new value", new ObjectID(1), attributes, new ObjectID(0),
-                      new NullMetaDataProcessingContext());
+    idxManager.insert("xyz", "new value", new ValueID(1), attributes, 0, new NullProcessingContext());
 
     verifyClean(dirsOnly);
 
-    FileUtils.forceDelete(new File(getLuceneDir().getAbsolutePath() + File.separator + "xyz" + File.separator
-                                   + Integer.toString(removeIndex), "__terracotta_init.txt"));
+    idxManager.shutdown();
+    File init = new File(getLuceneDir().getAbsolutePath() + File.separator + "xyz" + File.separator
+                         + Integer.toString(removeIndex), LuceneIndex.TERRACOTTA_INIT_FILE);
+    boolean deleted = init.delete();
+    assertTrue(init.getAbsolutePath(), deleted);
 
-    idxManager = new LuceneIndexManager(getLuceneDir());
+    idxManager = newIndexManager(getLuceneDir());
     idxManager.init();
 
     Assert.assertEquals(0, getLuceneDir().listFiles(dirsOnly).length);
-
   }
 
   private void verifyClean(FileFilter dirsOnly) throws IOException {
@@ -617,10 +617,16 @@ public class LuceneIndexManagerTest extends TestCase {
     return context.getQueryResults();
   }
 
-  private File getLuceneDir() throws IOException {
+  private File getLuceneDir(boolean clean) throws IOException {
     File dir = new File(getTempDirectory(), getName());
-    Util.cleanDirectory(dir);
+    if (clean) {
+      Util.cleanDirectory(dir);
+    }
     return dir;
+  }
+
+  private File getLuceneDir() throws IOException {
+    return getLuceneDir(false);
   }
 
   private String getTempDirectory() {

@@ -66,7 +66,6 @@ public class LuceneIndexManager {
 
   static final String                                 TERRACOTTA_CACHE_NAME_FILE = "__terracotta_cache_name.txt";
   static final String                                 TERRACOTTA_SCHEMA_FILE     = "__terracotta_schema.properties";
-
   private static final String                         COUNT_AGG_NAME             = "COUNT";
 
   public LuceneIndexManager(File indexDir, boolean isPermStore, LoggerFactory loggerFactory, Configuration cfg) {
@@ -144,14 +143,21 @@ public class LuceneIndexManager {
           // We MUST use the original cache name for index group creation, for consistency with on-demand group
           // creation
           // during call chain from upsert()
-          IndexGroup grp = getOrCreateGroup(loadName(dir), null);
-          for (File subDir : dir.listFiles(dirsOnly)) {
-            if (LuceneIndex.hasInitFile(subDir)) {
-              grp.createIndex(Long.valueOf(subDir.getName()), true);
-            } else {
-              incomplete.add(subDir);
+          boolean isCleanGroup = true;
+          File[] subDirs = dir.listFiles(dirsOnly);
+          if (subDirs.length != perCacheIdxCt) {
+            incomplete.add(dir);
+            isCleanGroup = false;
+          } else {
+            for (File subDir : subDirs) {
+              if (!LuceneIndex.hasInitFile(subDir)) {
+                incomplete.add(dir);
+                isCleanGroup = false;
+                break;
+              }
             }
           }
+          if (isCleanGroup) getOrCreateGroup(loadName(dir), null, true);
         } catch (IndexException e) {
           IOException ioe = new IOException(e);
           throw ioe;
@@ -161,7 +167,6 @@ public class LuceneIndexManager {
       for (File dir : incomplete) {
         logger.warn("Removing incomplete index directory: " + dir.getAbsolutePath());
         Util.deleteDirectory(dir);
-        if (dir.getParentFile().listFiles(dirsOnly).length == 0) Util.deleteDirectory(dir.getParentFile());
       }
 
       if (!tempDirs.isEmpty()) { throw new AssertionError("Not all temp ram/offheap dirs consumed: " + tempDirs); }
@@ -182,23 +187,27 @@ public class LuceneIndexManager {
     return indexDir.isDirectory() ? indexDir.list() : new String[0];
   }
 
-  private IndexGroup getOrCreateGroup(String name, List<NVPair> attrs) throws IndexException {
+  private IndexGroup getOrCreateGroup(String name, List<NVPair> attrs, boolean load) throws IndexException {
     IndexGroup group = getGroup(name);
     if (group == null) {
-      group = new IndexGroup(name);
-      IndexGroup tmp = idxGroups.putIfAbsent(name, group);
-      if (tmp != null) group = tmp;
-      else {
-        group.storeName();
-        Map<String, ValueType> idxSchema;
-        synchronized (group) {
-          if (attrs == null) idxSchema = group.loadSchema();
-          else {
-            idxSchema = extractSchema(attrs);
-            group.storeSchema(idxSchema);
-          }
-          group.schema.putAll(idxSchema);
+      synchronized (idxGroups) {
+        group = getGroup(name);
+        // double check for not creating indices again
+        if (group == null) {
+          group = new IndexGroup(name, load);
+          IndexGroup prev = this.idxGroups.put(name, group);
+          if (prev != null) { throw new AssertionError("replaced group for " + name); }
         }
+      }
+      group.storeName();
+      Map<String, ValueType> idxSchema;
+      synchronized (group) {
+        if (attrs == null) idxSchema = group.loadSchema();
+        else {
+          idxSchema = extractSchema(attrs);
+          group.storeSchema(idxSchema);
+        }
+        group.schema.putAll(idxSchema);
       }
     }
     return group;
@@ -261,18 +270,18 @@ public class LuceneIndexManager {
     if (group != null) {
       group.remove(key, segmentId, context);
     } else {
-      logger.warn("Remove failed: no such index group [" + indexName + "] exists");
+      logger.info("Remove ignored: no such index group [" + indexName + "] exists");
       context.processed();
     }
   }
 
-  public void replace(String indexName, String key, ValueID value, Object previousValue, List<NVPair> attributes,
+  public void replace(String indexName, String key, ValueID value, ValueID previousValue, List<NVPair> attributes,
                       long segmentId, ProcessingContext context) throws IndexException {
     IndexGroup group = getGroup(indexName);
     if (group != null) {
       group.replaceIfPresent(key, value, previousValue, attributes, segmentId, context);
     } else {
-      logger.warn("Replace failed: no such index group [" + indexName + "] exists");
+      logger.info("Replace ignored: no such index group [" + indexName + "] exists");
       context.processed();
     }
   }
@@ -283,7 +292,7 @@ public class LuceneIndexManager {
     if (group != null) {
       group.removeIfValueEqual(toRemove, segmentId, context);
     } else {
-      logger.warn("RemoveIfValueEqual failed: no such index group [" + indexName + "] exists");
+      logger.info("RemoveIfValueEqual ignored: no such index group [" + indexName + "] exists");
       context.processed();
     }
   }
@@ -291,13 +300,13 @@ public class LuceneIndexManager {
   public void update(String indexName, String key, ValueID value, List<NVPair> attributes, long segmentId,
                      ProcessingContext context) throws IndexException {
     // Get or create here b/c draining the journal will do a blind update due to a possible race with index sync
-    IndexGroup group = getOrCreateGroup(indexName, attributes);
+    IndexGroup group = getOrCreateGroup(indexName, attributes, false);
     group.update(key, value, attributes, segmentId, context);
   }
 
   public void insert(String indexName, String key, ValueID value, List<NVPair> attributes, long segmentId,
                      ProcessingContext context) throws IndexException {
-    IndexGroup group = getOrCreateGroup(indexName, attributes);
+    IndexGroup group = getOrCreateGroup(indexName, attributes, false);
     group.insert(key, value, attributes, segmentId, context);
   }
 
@@ -306,7 +315,7 @@ public class LuceneIndexManager {
     if (group != null) {
       group.clear(segmentId, context);
     } else {
-      logger.warn("Clear failed: no such index group [" + indexName + "] exists");
+      logger.info("Clear ignored: no such index group [" + indexName + "] exists");
       context.processed();
     }
   }
@@ -432,13 +441,15 @@ public class LuceneIndexManager {
     private final ConcurrentMap<String, ValueType>    schema  = new ConcurrentHashMap<String, ValueType>();
     private File                                      schemaSnapshot;
 
-    private IndexGroup(String name) throws IndexException {
+    private IndexGroup(String name, boolean load) throws IndexException {
       groupName = name;
       try {
         Util.ensureDirectory(getPath());
+        createIndices(load);
       } catch (IOException x) {
         throw new IndexException(x);
       }
+
     }
 
     private void close() {
@@ -528,67 +539,51 @@ public class LuceneIndexManager {
 
     }
 
-    private void replaceIfPresent(String key, ValueID value, Object previousValue, List<NVPair> attributes,
+    private void replaceIfPresent(String key, ValueID value, ValueID previousValue, List<NVPair> attributes,
                                   long segmentId, ProcessingContext context) throws IndexException {
       LuceneIndex index = getIndex(segmentId);
-      if (index != null) {
-        index.replaceIfPresent(key, value, previousValue, attributes, segmentId, context);
-      } else logger.warn(String.format("Unable to run replaceIfPresent: segment %s has no index in group %s",
-                                       segmentId, groupName));
+      if (index == null) throw new IndexException("Unable to run replaceIfPresent: segment " + segmentId
+                                                  + " has no index in group " + groupName);
+      index.replaceIfPresent(key, value, previousValue, attributes, segmentId, context);
     }
 
     private void removeIfValueEqual(Map<String, ValueID> toRemove, long segmentId, ProcessingContext context)
         throws IndexException {
       LuceneIndex index = getIndex(segmentId);
-      if (index != null) {
-        index.removeIfValueEqual(toRemove, context);
-      } else logger.warn(String.format("Unable to run removeIfValueEqual: segment %s has no index in group %s",
-                                       segmentId, groupName));
+      if (index == null) throw new IndexException("Unable to run removeIfValueEqual: segment " + segmentId
+                                                  + " has no index in group " + groupName);
+      index.removeIfValueEqual(toRemove, context);
     }
 
     private void remove(String key, long segmentId, ProcessingContext context) throws IndexException {
       LuceneIndex index = getIndex(segmentId);
-      if (index != null) {
-        index.remove(key, context);
-      } else logger.warn(String.format("Unable to run remove: segment %s has no index in group %s", segmentId,
-                                       groupName));
+      if (index == null) throw new IndexException("Unable to run remove: segment " + segmentId
+                                                  + " has no index in group " + groupName);
+      index.remove(key, context);
 
     }
 
     private void clear(long segmentId, ProcessingContext context) throws IndexException {
       LuceneIndex index = getIndex(segmentId);
-      if (index != null) {
-        index.clear(segmentId, context);
-      } else logger.warn(String
-          .format("Unable to run clear: segment %s has no index in group %s", segmentId, groupName));
+      if (index == null) throw new IndexException("Unable to run clear: segment " + segmentId
+                                                  + " has no index in group " + groupName);
+      index.clear(segmentId, context);
 
     }
 
     private void update(String key, ValueID value, List<NVPair> attributes, long segmentId, ProcessingContext context)
         throws IndexException {
       LuceneIndex index = getIndex(segmentId);
-      if (index == null) {
-        try {
-          // Create here, similar to update() one level higher
-          index = createIndex(segmentId, false);
-        } catch (IOException x) {
-          throw new IndexException(x);
-        }
-      }
+      if (index == null) throw new IndexException("Unable to run update: segment " + segmentId
+                                                  + " has no index in group " + groupName);
       index.update(key, value, attributes, segmentId, context);
     }
 
     private void insert(String key, ValueID value, List<NVPair> attributes, long segmentId, ProcessingContext context)
         throws IndexException {
       LuceneIndex index = getIndex(segmentId);
-      if (index == null) {
-        try {
-          index = createIndex(segmentId, false);
-        } catch (IOException ioe) {
-          throw new IndexException(ioe);
-        }
-      }
-
+      if (index == null) throw new IndexException("Unable to run insert: segment " + segmentId
+                                                  + " has no index in group " + groupName);
       index.insert(key, value, attributes, segmentId, context);
     }
 
@@ -794,33 +789,31 @@ public class LuceneIndexManager {
       return new File(indexDir, Util.sanitizeCacheName(groupName));
     }
 
-    private LuceneIndex createIndex(long segmentId, boolean load) throws IndexException, IOException {
+    private void createIndices(boolean load) throws IndexException, IOException {
       synchronized (LuceneIndexManager.this) {
         if (shutdown) throw new IndexException("Index manager shutdown");
-
-        LuceneIndex index = null;
-        if ((index = getIndex(segmentId)) != null) { return index; }
+        if (!this.indices.isEmpty()) { throw new AssertionError("not empty: " + this.indices); }
 
         File groupPath = getPath();
+        for (int idxSegment = 0; idxSegment < perCacheIdxCt; idxSegment++) {
+          String idxStr = String.valueOf(idxSegment);
+          File path = new File(groupPath, idxStr);
 
-        int idxSegment = getIndexId(segmentId);
-        String idxStr = String.valueOf(idxSegment);
-        File path = new File(groupPath, idxStr);
+          final LuceneIndex luceneIndex;
 
-        final LuceneIndex luceneIndex;
+          if (!load) {
+            logger.info(String.format("Creating search index [%s/%d]", groupName, idxSegment));
+            luceneIndex = new LuceneIndex(createDirectoryFor(path), idxStr, path, useCommitThread, this, cfg,
+                                          loggerFactory);
+          } else {
+            luceneIndex = new LuceneIndex(directoryFor(groupName, idxStr, path), idxStr, path, useCommitThread, this,
+                                          cfg, loggerFactory); // FIXME
+            logger.info(String.format("Opening existing search index [%s/%d]", groupName, idxSegment));
+          }
 
-        if (!load) {
-          logger.info(String.format("Creating search index [%s/%d]", groupName, idxSegment));
-          luceneIndex = new LuceneIndex(createDirectoryFor(path), idxStr, path, useCommitThread, this, cfg,
-                                        loggerFactory);
-        } else {
-          luceneIndex = new LuceneIndex(directoryFor(groupName, idxStr, path), idxStr, path, useCommitThread, this,
-                                        cfg, loggerFactory); // FIXME
-          logger.info(String.format("Opening existing search index [%s/%d]", groupName, idxSegment));
+          indices.put(idxSegment, luceneIndex);
         }
 
-        indices.put(idxSegment, luceneIndex);
-        return luceneIndex;
       }
     }
 
