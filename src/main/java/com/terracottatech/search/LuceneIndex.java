@@ -97,7 +97,7 @@ class LuceneIndex {
   private List<ProcessingContext>          pending               = newPendingList();
   private final IndexGroup                 idxGroup;
 
-  private final Thread                     accessor              = Thread.currentThread();
+  private final AtomicReference<Thread>    accessor              = new AtomicReference<Thread>();
 
   private boolean                          snapshotTaken         = false;                           // XXX - change to
                                                                                                      // snapshot name
@@ -385,7 +385,8 @@ class LuceneIndex {
   }
 
   void remove(String key, ProcessingContext context) throws IndexException {
-    assert accessor == Thread.currentThread() : accessor.toString();
+    if (!accessor.compareAndSet(null, Thread.currentThread()) && accessor.get() != Thread.currentThread()) { throw new AssertionError(
+                                                                                                                                      "Index is being accessed by a different thread"); }
 
     try {
       writer.deleteDocuments(new Term(KEY_FIELD_NAME, key));
@@ -428,6 +429,9 @@ class LuceneIndex {
 
   private void removeIfValueEqual(String key, ValueID value, IndexReader reader, IndexSearcher searcher)
       throws IOException {
+    if (!accessor.compareAndSet(null, Thread.currentThread()) && accessor.get() != Thread.currentThread()) { throw new AssertionError(
+                                                                                                                                      "Index is being accessed by a different thread"); }
+
     BooleanQuery query = new BooleanQuery();
     query.add(new BooleanClause(new TermQuery(new Term(KEY_FIELD_NAME, key)), Occur.MUST));
     query
@@ -467,7 +471,6 @@ class LuceneIndex {
 
   public void update(String key, ValueID value, List<NVPair> attributes, long segmentOid, ProcessingContext context)
       throws IndexException {
-    assert accessor == Thread.currentThread() : accessor.toString();
     try {
       upsertInternal(key, value, attributes, segmentOid, false);
       addPendingContext(context);
@@ -479,7 +482,6 @@ class LuceneIndex {
 
   public void insert(String key, ValueID value, List<NVPair> attributes, long segmentOid, ProcessingContext context)
       throws IndexException {
-    assert accessor == Thread.currentThread() : accessor.toString();
     try {
       upsertInternal(key, value, attributes, segmentOid, true);
       addPendingContext(context);
@@ -492,6 +494,8 @@ class LuceneIndex {
 
   private void upsertInternal(String key, ValueID value, List<NVPair> attributes, long segmentOid, boolean isInsert)
       throws IndexException {
+    if (!accessor.compareAndSet(null, Thread.currentThread()) && accessor.get() != Thread.currentThread()) { throw new AssertionError(
+                                                                                                                                      "Index is being accessed by a different thread"); }
 
     idxGroup.checkSchema(attributes);
 
