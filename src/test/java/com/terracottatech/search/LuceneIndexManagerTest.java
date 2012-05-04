@@ -5,6 +5,7 @@ package com.terracottatech.search;
 
 import org.apache.lucene.store.FSDirectory;
 
+import com.terracottatech.search.AbstractNVPair.ByteArrayNVPair;
 import com.terracottatech.search.AbstractNVPair.IntNVPair;
 import com.terracottatech.search.AbstractNVPair.StringNVPair;
 import com.terracottatech.search.aggregator.Aggregator;
@@ -14,6 +15,7 @@ import java.io.FileFilter;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -29,12 +31,13 @@ import junit.framework.TestCase;
 
 public class LuceneIndexManagerTest extends TestCase {
 
-  private static final int    idxCt         = 4;
+  private static final List<NVPair> EMPTY         = Collections.emptyList();
+  private static final int          idxCt         = 4;
 
-  private LuceneIndexManager  idxManager;
+  private LuceneIndexManager        idxManager;
 
-  private final Configuration cfg           = new Configuration(idxCt, 10, false, false, true);
-  private final LoggerFactory loggerFactory = new SysOutLoggerFactory();
+  private final Configuration       cfg           = new Configuration(idxCt, 10, false, false, true);
+  private final LoggerFactory       loggerFactory = new SysOutLoggerFactory();
 
   @Override
   public void tearDown() throws Exception {
@@ -55,7 +58,7 @@ public class LuceneIndexManagerTest extends TestCase {
 
     assertEquals(0, idxManager.getSearchIndexNames().length);
 
-    idxManager.insert("foo", "key", new ValueID(12), Collections.EMPTY_LIST, 34, new NullProcessingContext());
+    idxManager.insert("foo", "key", new ValueID(12), EMPTY, EMPTY, 34, new NullProcessingContext());
 
     assertEquals(1, idxManager.getSearchIndexNames().length);
     assertEquals("foo", idxManager.getSearchIndexNames()[0]);
@@ -109,7 +112,7 @@ public class LuceneIndexManagerTest extends TestCase {
 
     int docCt = idxCt * 2;
     for (int i = 0; i < docCt; i++) {
-      idxManager.insert("foo", "key", new ValueID(12), Collections.EMPTY_LIST, i, new NullProcessingContext());
+      idxManager.insert("foo", "key", new ValueID(12), EMPTY, EMPTY, i, new NullProcessingContext());
     }
 
     assertEquals(1, idxManager.getSearchIndexNames().length);
@@ -137,16 +140,20 @@ public class LuceneIndexManagerTest extends TestCase {
 
     attributes.add(new AbstractNVPair.StringNVPair("attr1", "foo"));
 
+    List<NVPair> storeOnlyattributes = new ArrayList<NVPair>();
+    storeOnlyattributes.add(new AbstractNVPair.ByteArrayNVPair("attr2", new byte[] { 6, 6, 6 }));
+
     ValueID valueOid = new ValueID(1);
 
     int docCt = idxCt * 2;
     for (int i = 0; i < docCt; i++) {
-      idxManager.insert("foo", "key-" + i, valueOid, attributes, i, new NullProcessingContext());
+      idxManager.insert("foo", "key-" + i, valueOid, attributes, storeOnlyattributes, i, new NullProcessingContext());
     }
 
     // test search
     Set<String> attributeSet = new HashSet<String>();
     attributeSet.add("attr1");
+    attributeSet.add("attr2");
 
     LinkedList queryStack = new LinkedList();
     queryStack.addFirst(AbstractNVPair.createNVPair("attr1", "foo"));
@@ -162,9 +169,15 @@ public class LuceneIndexManagerTest extends TestCase {
       }
       assertEquals(valueOid, result.getValue());
       for (NVPair pair : result.getAttributes()) {
-        StringNVPair stringNVPair = (StringNVPair) pair;
-        assertEquals("attr1", stringNVPair.getName());
-        assertEquals("foo", stringNVPair.getValue());
+        if (pair.getName().equals("attr1")) {
+          StringNVPair stringNVPair = (StringNVPair) pair;
+          assertEquals("foo", stringNVPair.getValue());
+        } else if (pair.getName().equals("attr2")) {
+          ByteArrayNVPair byteArrayNVPair = (ByteArrayNVPair) pair;
+          assertTrue(Arrays.equals(new byte[] { 6, 6, 6 }, byteArrayNVPair.getValue()));
+        } else {
+          throw new AssertionError(pair);
+        }
       }
     }
     assertTrue(hasKey);
@@ -175,8 +188,8 @@ public class LuceneIndexManagerTest extends TestCase {
     List<NVPair> attributes = Collections.EMPTY_LIST;
     String name = getName();
 
-    idxManager.insert(name, "key1", new ValueID(100), attributes, 1, new NullProcessingContext());
-    idxManager.insert(name, "key2", new ValueID(200), attributes, 2, new NullProcessingContext());
+    idxManager.insert(name, "key1", new ValueID(100), attributes, EMPTY, 1, new NullProcessingContext());
+    idxManager.insert(name, "key2", new ValueID(200), attributes, EMPTY, 2, new NullProcessingContext());
 
     List queryStack = new LinkedList();
     queryStack.add(StackOperations.ALL);
@@ -212,7 +225,7 @@ public class LuceneIndexManagerTest extends TestCase {
     ValueID valueOid = new ValueID(1);
     long segmentId = 1984L;
 
-    idxManager.insert(name, "key", valueOid, attributes, segmentId, new NullProcessingContext());
+    idxManager.insert(name, "key", valueOid, attributes, EMPTY, segmentId, new NullProcessingContext());
     Map remove = new HashMap();
 
     remove.put("key", valueOid);
@@ -255,7 +268,7 @@ public class LuceneIndexManagerTest extends TestCase {
     ValueID valueOid = new ValueID(1);
     long segmentId = 1984L;
 
-    idxManager.insert(name, key, valueOid, attributes, segmentId, new NullProcessingContext());
+    idxManager.insert(name, key, valueOid, attributes, EMPTY, segmentId, new NullProcessingContext());
     idxManager.remove(name, key, 1985L /* wrong segment */, new NullProcessingContext());
 
     Set<String> attributeSet = new HashSet<String>();
@@ -293,17 +306,17 @@ public class LuceneIndexManagerTest extends TestCase {
 
     attributes.add(new AbstractNVPair.StringNVPair("name", names[0]));
     attributes.add(new AbstractNVPair.IntNVPair("age", 54));
-    idxManager.insert(idx, "p0", new ValueID(100), attributes, segmentId, new NullProcessingContext());
+    idxManager.insert(idx, "p0", new ValueID(100), attributes, EMPTY, segmentId, new NullProcessingContext());
     attributes.clear();
 
     attributes.add(new AbstractNVPair.StringNVPair("name", names[1]));
     attributes.add(new AbstractNVPair.IntNVPair("age", 43));
-    idxManager.insert(idx, "p1", new ValueID(20), attributes, segmentId, new NullProcessingContext());
+    idxManager.insert(idx, "p1", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
     attributes.clear();
 
     attributes.add(new AbstractNVPair.StringNVPair("name", names[2]));
     attributes.add(new AbstractNVPair.IntNVPair("age", 27));
-    idxManager.insert(idx, "p2", new ValueID(20), attributes, segmentId, new NullProcessingContext());
+    idxManager.insert(idx, "p2", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
     attributes.clear();
 
     // test search
@@ -330,7 +343,7 @@ public class LuceneIndexManagerTest extends TestCase {
     // Across multiple segments/indexes
     attributes.add(new AbstractNVPair.StringNVPair("name", "jerry"));
     attributes.add(new AbstractNVPair.IntNVPair("age", 36));
-    idxManager.insert(idx, "p2", new ValueID(20), attributes, 1985L, new NullProcessingContext());
+    idxManager.insert(idx, "p2", new ValueID(20), attributes, EMPTY, 1985L, new NullProcessingContext());
 
     context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, sortAttributes, Collections.EMPTY_LIST,
                                      -1);
@@ -354,17 +367,17 @@ public class LuceneIndexManagerTest extends TestCase {
 
     attributes.add(new AbstractNVPair.StringNVPair("name", names[0]));
     attributes.add(new AbstractNVPair.IntNVPair("age", 54));
-    idxManager.insert(idx, "p0", new ValueID(100), attributes, segmentId, new NullProcessingContext());
+    idxManager.insert(idx, "p0", new ValueID(100), attributes, EMPTY, segmentId, new NullProcessingContext());
     attributes.clear();
 
     attributes.add(new AbstractNVPair.StringNVPair("name", names[1]));
     attributes.add(new AbstractNVPair.IntNVPair("age", 43));
-    idxManager.insert(idx, "p1", new ValueID(20), attributes, segmentId, new NullProcessingContext());
+    idxManager.insert(idx, "p1", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
     attributes.clear();
 
     attributes.add(new AbstractNVPair.StringNVPair("name", names[2]));
     attributes.add(new AbstractNVPair.IntNVPair("age", 27));
-    idxManager.insert(idx, "p2", new ValueID(20), attributes, segmentId, new NullProcessingContext());
+    idxManager.insert(idx, "p2", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
     attributes.clear();
 
     // test search
@@ -386,7 +399,7 @@ public class LuceneIndexManagerTest extends TestCase {
     // Across multiple segments/indexes
     attributes.add(new AbstractNVPair.StringNVPair("name", names[2]));
     attributes.add(new AbstractNVPair.IntNVPair("age", 36));
-    idxManager.insert(idx, "p2", new ValueID(20), attributes, 1985L, new NullProcessingContext());
+    idxManager.insert(idx, "p2", new ValueID(20), attributes, EMPTY, 1985L, new NullProcessingContext());
 
     context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, sortAttributes, Collections.EMPTY_LIST,
                                      -1);
@@ -401,7 +414,7 @@ public class LuceneIndexManagerTest extends TestCase {
     for (int i = 0; i < count; i++) {
       List<NVPair> attributes = new ArrayList<NVPair>();
       attributes.add(new AbstractNVPair.IntNVPair("age", minVal + i));
-      idxManager.insert(name, "key" + i, new ValueID(i * 4), attributes, i, new NullProcessingContext());
+      idxManager.insert(name, "key" + i, new ValueID(i * 4), attributes, EMPTY, i, new NullProcessingContext());
     }
 
     // test functions
@@ -441,7 +454,7 @@ public class LuceneIndexManagerTest extends TestCase {
     for (int i = 0; i < count; i++) {
       List<NVPair> attributes = new ArrayList<NVPair>();
       attributes.add(new AbstractNVPair.IntNVPair("age", minVal + i));
-      idxManager.insert(name, "key" + i, new ValueID(i * 4), attributes, i, new NullProcessingContext());
+      idxManager.insert(name, "key" + i, new ValueID(i * 4), attributes, EMPTY, i, new NullProcessingContext());
     }
 
     // test functions
@@ -491,7 +504,7 @@ public class LuceneIndexManagerTest extends TestCase {
       List<NVPair> attributes = new ArrayList<NVPair>();
       attributes.add(new AbstractNVPair.IntNVPair("age", minVal + i));
 
-      idxManager.insert(name, "key" + i, new ValueID(i * 4), attributes, i, new NullProcessingContext());
+      idxManager.insert(name, "key" + i, new ValueID(i * 4), attributes, EMPTY, i, new NullProcessingContext());
     }
 
     Set<String> attributeSet = Collections.EMPTY_SET;
@@ -530,16 +543,17 @@ public class LuceneIndexManagerTest extends TestCase {
 
     attributes.add(new AbstractNVPair.StringNVPair("attr1", "foo"));
 
-    idxManager.replace("foo", "replace", new ValueID(2), new ValueID(1), attributes, 0, new NullProcessingContext());
+    idxManager.replace("foo", "replace", new ValueID(2), new ValueID(1), attributes, EMPTY, 0,
+                       new NullProcessingContext());
 
     List<IndexQueryResult> res = searchResults();
     assertEquals(0, res.size());
-    idxManager.insert("foo", "replace", new ValueID(1), attributes, 0, new NullProcessingContext());
+    idxManager.insert("foo", "replace", new ValueID(1), attributes, EMPTY, 0, new NullProcessingContext());
     res = searchResults();
     assertEquals(1, res.size());
 
     for (int i = 0; i < 10; i++) {
-      idxManager.replace("foo", "replace", new ValueID(i + 2), new ValueID(i + 1), attributes, 0,
+      idxManager.replace("foo", "replace", new ValueID(i + 2), new ValueID(i + 1), attributes, EMPTY, 0,
                          new NullProcessingContext());
     }
     assertEquals(1, res.size());
@@ -556,7 +570,7 @@ public class LuceneIndexManagerTest extends TestCase {
     List<NVPair> attributes = new ArrayList<NVPair>();
 
     attributes.add(new AbstractNVPair.StringNVPair("attr1", "foo"));
-    idxManager.insert("foo", "replace", new ValueID(1), attributes, 0, new NullProcessingContext());
+    idxManager.insert("foo", "replace", new ValueID(1), attributes, EMPTY, 0, new NullProcessingContext());
     Assert.assertEquals(idxCt, new File(getLuceneDir(), "foo").listFiles(dirsOnly).length);
 
     verifyClean(dirsOnly);
@@ -577,7 +591,7 @@ public class LuceneIndexManagerTest extends TestCase {
     idxManager.init();
     Assert.assertEquals(0, getLuceneDir().listFiles(dirsOnly).length);
 
-    idxManager.insert("xyz", "new value", new ValueID(1), attributes, 0, new NullProcessingContext());
+    idxManager.insert("xyz", "new value", new ValueID(1), attributes, EMPTY, 0, new NullProcessingContext());
 
     verifyClean(dirsOnly);
 

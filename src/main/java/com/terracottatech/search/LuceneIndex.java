@@ -36,6 +36,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.NumericUtils;
 
 import com.terracottatech.search.AbstractNVPair.BooleanNVPair;
+import com.terracottatech.search.AbstractNVPair.ByteArrayNVPair;
 import com.terracottatech.search.AbstractNVPair.ByteNVPair;
 import com.terracottatech.search.AbstractNVPair.CharNVPair;
 import com.terracottatech.search.AbstractNVPair.DateNVPair;
@@ -339,6 +340,8 @@ class LuceneIndex {
   }
 
   private Object getFieldValue(Document doc, String attrKey, ValueType type) {
+    if (type == ValueType.BYTE_ARRAY) { return doc.getBinaryValue(attrKey); }
+
     String attrValue = doc.get(attrKey);
     if (attrValue == null) return null;
 
@@ -353,7 +356,7 @@ class LuceneIndex {
       case BYTE:
         return Byte.valueOf(attrValue);
       case BYTE_ARRAY:
-        // XXX: this is an unexpected type!
+        // Should have been handled above
         throw new AssertionError(type);
       case CHAR:
         return new Character((char) Integer.valueOf(attrValue).intValue());
@@ -452,8 +455,9 @@ class LuceneIndex {
     addPendingContext(context);
   }
 
-  void replaceIfPresent(String key, ValueID value, Object oldValue, List<NVPair> attributes, long segmentOid,
-                        ProcessingContext context) throws IndexException {
+  void replaceIfPresent(String key, ValueID value, Object oldValue, List<NVPair> attributes,
+                        List<NVPair> storeOnlyAttributes, long segmentOid, ProcessingContext context)
+      throws IndexException {
     try {
       ValueID existingValue = valueForKey(key);
       if (existingValue == null || !existingValue.equals(oldValue)) {
@@ -461,7 +465,7 @@ class LuceneIndex {
         return;
       }
 
-      upsertInternal(key, value, attributes, segmentOid, false);
+      upsertInternal(key, value, attributes, storeOnlyAttributes, segmentOid, false);
       addPendingContext(context);
     } catch (IndexException ie) {
       context.processed();
@@ -469,10 +473,10 @@ class LuceneIndex {
     }
   }
 
-  public void update(String key, ValueID value, List<NVPair> attributes, long segmentOid, ProcessingContext context)
-      throws IndexException {
+  public void update(String key, ValueID value, List<NVPair> attributes, List<NVPair> storeOnlyAttributes,
+                     long segmentOid, ProcessingContext context) throws IndexException {
     try {
-      upsertInternal(key, value, attributes, segmentOid, false);
+      upsertInternal(key, value, attributes, storeOnlyAttributes, segmentOid, false);
       addPendingContext(context);
     } catch (IndexException ie) {
       context.processed();
@@ -480,10 +484,10 @@ class LuceneIndex {
     }
   }
 
-  public void insert(String key, ValueID value, List<NVPair> attributes, long segmentOid, ProcessingContext context)
-      throws IndexException {
+  public void insert(String key, ValueID value, List<NVPair> attributes, List<NVPair> storeOnlyAttributes,
+                     long segmentOid, ProcessingContext context) throws IndexException {
     try {
-      upsertInternal(key, value, attributes, segmentOid, true);
+      upsertInternal(key, value, attributes, storeOnlyAttributes, segmentOid, true);
       addPendingContext(context);
     } catch (IndexException ie) {
       context.processed();
@@ -492,89 +496,27 @@ class LuceneIndex {
 
   }
 
-  private void upsertInternal(String key, ValueID value, List<NVPair> attributes, long segmentOid, boolean isInsert)
-      throws IndexException {
-    if (!accessor.compareAndSet(null, Thread.currentThread()) && accessor.get() != Thread.currentThread()) { throw new AssertionError(
-                                                                                                                                      "Index is being accessed by a different thread"); }
+  private void upsertInternal(String key, ValueID value, List<NVPair> attributes, List<NVPair> storeOnlyAttributes,
+                              long segmentOid, boolean isInsert) throws IndexException {
+    if (!accessor.compareAndSet(null, Thread.currentThread()) && accessor.get() != Thread.currentThread()) {
+      //
+      throw new AssertionError("Index is being accessed by a different thread");
+    }
 
     idxGroup.checkSchema(attributes);
+    idxGroup.checkSchema(storeOnlyAttributes);
 
     Document doc = new Document();
 
     doc.add(new Field(KEY_FIELD_NAME, key, Field.Store.YES, Field.Index.NOT_ANALYZED_NO_NORMS));
 
-    doc.add(createNumericField(VALUE_FIELD_NAME).setLongValue(value.toLong()));
+    doc.add(createNumericField(VALUE_FIELD_NAME, true).setLongValue(value.toLong()));
 
     // this field is used to implement per-CDSM segment clearing
-    doc.add(createNumericField(SEGMENT_ID_FIELD_NAME).setLongValue(segmentOid));
+    doc.add(createNumericField(SEGMENT_ID_FIELD_NAME, true).setLongValue(segmentOid));
 
-    for (NVPair nvpair : attributes) {
-      String attrName = nvpair.getName();
-
-      ValueType type = nvpair.getType();
-      switch (type) {
-        case BOOLEAN:
-          BooleanNVPair booleanPair = (BooleanNVPair) nvpair;
-          if (booleanPair.getValue()) {
-            doc.add(createNumericField(attrName).setIntValue(1));
-          } else {
-            doc.add(createNumericField(attrName).setIntValue(0));
-          }
-          break;
-        case BYTE:
-          ByteNVPair bytePair = (ByteNVPair) nvpair;
-          doc.add(createNumericField(attrName).setIntValue(bytePair.getValue()));
-          break;
-        case BYTE_ARRAY:
-          throw new IndexException("We do not index byte array's. Attribute name: " + attrName);
-        case CHAR:
-          CharNVPair charPair = (CharNVPair) nvpair;
-          doc.add(createNumericField(attrName).setIntValue(charPair.getValue()));
-          break;
-        case DATE:
-          DateNVPair datePair = (DateNVPair) nvpair;
-          doc.add(createNumericField(attrName).setLongValue(datePair.getValue().getTime()));
-          break;
-        case SQL_DATE:
-          SqlDateNVPair sqlDatePair = (SqlDateNVPair) nvpair;
-          doc.add(createNumericField(attrName).setLongValue(sqlDatePair.getValue().getTime()));
-          break;
-        case DOUBLE:
-          DoubleNVPair doubleNVPair = (DoubleNVPair) nvpair;
-          doc.add(createNumericField(attrName).setDoubleValue(doubleNVPair.getValue()));
-          break;
-        case ENUM:
-          EnumNVPair enumPair = (EnumNVPair) nvpair;
-          doc.add(createField(attrName, AbstractNVPair.enumStorageString(enumPair), Field.Index.NOT_ANALYZED_NO_NORMS));
-          break;
-        case FLOAT:
-          FloatNVPair floatNVPair = (FloatNVPair) nvpair;
-          doc.add(createNumericField(attrName).setFloatValue(floatNVPair.getValue()));
-          break;
-        case INT:
-          IntNVPair intNVPair = (IntNVPair) nvpair;
-          doc.add(createNumericField(attrName).setIntValue(intNVPair.getValue()));
-          break;
-        case LONG:
-          LongNVPair longNVPair = (LongNVPair) nvpair;
-          doc.add(createNumericField(attrName).setLongValue(longNVPair.getValue()));
-          break;
-        case SHORT:
-          ShortNVPair shortNVPair = (ShortNVPair) nvpair;
-          doc.add(createNumericField(attrName).setIntValue(shortNVPair.getValue()));
-          break;
-        case STRING:
-          StringNVPair stringNVPair = (StringNVPair) nvpair;
-          doc.add(createField(attrName, stringNVPair.getValue(), Field.Index.ANALYZED_NO_NORMS));
-          break;
-        case NULL:
-          throw new AssertionError();
-        case VALUE_ID:
-          ValueIdNVPair oidNVPair = (ValueIdNVPair) nvpair;
-          doc.add(createNumericField(attrName).setLongValue(oidNVPair.getValue().toLong()));
-          break;
-      }
-    }
+    addFields(doc, attributes, true);
+    addFields(doc, storeOnlyAttributes, false);
 
     try {
       if (isInsert) {
@@ -586,8 +528,82 @@ class LuceneIndex {
     } catch (Exception e) {
       throw new IndexException(e);
     }
+  }
 
-    // XXX: We'll want to optimize() the index occasionally
+  private void addFields(Document doc, List<NVPair> attributes, boolean indexed) throws IndexException {
+    for (NVPair nvpair : attributes) {
+      String attrName = nvpair.getName();
+
+      ValueType type = nvpair.getType();
+      switch (type) {
+        case BOOLEAN:
+          BooleanNVPair booleanPair = (BooleanNVPair) nvpair;
+          if (booleanPair.getValue()) {
+            doc.add(createNumericField(attrName, indexed).setIntValue(1));
+          } else {
+            doc.add(createNumericField(attrName, indexed).setIntValue(0));
+          }
+          continue;
+        case BYTE:
+          ByteNVPair bytePair = (ByteNVPair) nvpair;
+          doc.add(createNumericField(attrName, indexed).setIntValue(bytePair.getValue()));
+          continue;
+        case BYTE_ARRAY:
+          if (indexed) { throw new IndexException(type.name() + " attributes can only be stored (not indexed)"); }
+          doc.add(new Field(attrName, ((ByteArrayNVPair) nvpair).getValue(), Field.Store.YES));
+          continue;
+        case CHAR:
+          CharNVPair charPair = (CharNVPair) nvpair;
+          doc.add(createNumericField(attrName, indexed).setIntValue(charPair.getValue()));
+          continue;
+        case DATE:
+          DateNVPair datePair = (DateNVPair) nvpair;
+          doc.add(createNumericField(attrName, indexed).setLongValue(datePair.getValue().getTime()));
+          continue;
+        case SQL_DATE:
+          SqlDateNVPair sqlDatePair = (SqlDateNVPair) nvpair;
+          doc.add(createNumericField(attrName, indexed).setLongValue(sqlDatePair.getValue().getTime()));
+          continue;
+        case DOUBLE:
+          DoubleNVPair doubleNVPair = (DoubleNVPair) nvpair;
+          doc.add(createNumericField(attrName, indexed).setDoubleValue(doubleNVPair.getValue()));
+          continue;
+        case ENUM:
+          EnumNVPair enumPair = (EnumNVPair) nvpair;
+          doc.add(createField(attrName, AbstractNVPair.enumStorageString(enumPair),
+                              indexed ? Field.Index.ANALYZED_NO_NORMS : Field.Index.NO));
+          continue;
+        case FLOAT:
+          FloatNVPair floatNVPair = (FloatNVPair) nvpair;
+          doc.add(createNumericField(attrName, indexed).setFloatValue(floatNVPair.getValue()));
+          continue;
+        case INT:
+          IntNVPair intNVPair = (IntNVPair) nvpair;
+          doc.add(createNumericField(attrName, indexed).setIntValue(intNVPair.getValue()));
+          continue;
+        case LONG:
+          LongNVPair longNVPair = (LongNVPair) nvpair;
+          doc.add(createNumericField(attrName, indexed).setLongValue(longNVPair.getValue()));
+          continue;
+        case SHORT:
+          ShortNVPair shortNVPair = (ShortNVPair) nvpair;
+          doc.add(createNumericField(attrName, indexed).setIntValue(shortNVPair.getValue()));
+          continue;
+        case STRING:
+          StringNVPair stringNVPair = (StringNVPair) nvpair;
+          doc.add(createField(attrName, stringNVPair.getValue(), indexed ? Field.Index.ANALYZED_NO_NORMS
+              : Field.Index.NO));
+          continue;
+        case NULL:
+          throw new AssertionError();
+        case VALUE_ID:
+          ValueIdNVPair oidNVPair = (ValueIdNVPair) nvpair;
+          doc.add(createNumericField(attrName, indexed).setLongValue(oidNVPair.getValue().toLong()));
+          continue;
+      }
+
+      throw new AssertionError(type.name());
+    }
   }
 
   private ValueID valueForKey(String key) throws IndexException {
@@ -628,7 +644,7 @@ class LuceneIndex {
     return writer.getReader();
   }
 
-  private Sort getSort(List<NVPair> sortAttributes) {
+  private Sort getSort(List<NVPair> sortAttributes) throws IndexException {
     List<SortField> sortFields = new ArrayList<SortField>(sortAttributes.size() * 2);
     for (NVPair sortAttributePair : sortAttributes) {
       String attributeName = sortAttributePair.getName();
@@ -643,8 +659,8 @@ class LuceneIndex {
     return new Field(attrName, value, Field.Store.YES, index);
   }
 
-  private NumericField createNumericField(String attrName) {
-    return new NumericField(attrName, Field.Store.YES, true);
+  private NumericField createNumericField(String attrName, boolean indexed) {
+    return new NumericField(attrName, Field.Store.YES, indexed);
   }
 
   void close() {
@@ -683,7 +699,7 @@ class LuceneIndex {
     }
   }
 
-  private int getSortFieldType(String attributeName) {
+  private int getSortFieldType(String attributeName) throws IndexException {
     ValueType valueType = idxGroup.getSchema().get(attributeName);
 
     switch (valueType) {
@@ -692,8 +708,7 @@ class LuceneIndex {
       case BYTE:
         return SortField.INT;
       case BYTE_ARRAY:
-        // XXX: unexpected type!
-        throw new AssertionError(valueType);
+        throw new IndexException("Unexpected sort type (" + valueType.name() + "] for attribute " + attributeName);
       case CHAR:
         return SortField.INT;
       case DATE:

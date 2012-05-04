@@ -99,7 +99,7 @@ public class LuceneQueryBuilder {
       case OR:
       case BEGIN_GROUP:
       case END_GROUP:
-        throw new AssertionError("operation: " + operation);
+        throw new IndexException(operation.name() + " is not expected here");
     }
 
     throw new AssertionError("operation: " + operation);
@@ -125,8 +125,7 @@ public class LuceneQueryBuilder {
         return NumericRangeQuery.newIntRange(name, min, max, minInclude, maxInclude);
       }
       case BYTE_ARRAY:
-        // XXX: This type is unexpected here!
-        throw new AssertionError();
+        throw new IndexException(type.name() + " not supported");
       case BYTE: {
         Integer min = Integer.valueOf(((ByteNVPair) minRange).getValue());
         Integer max = Integer.valueOf(((ByteNVPair) maxRange).getValue());
@@ -183,10 +182,10 @@ public class LuceneQueryBuilder {
         return new TermRangeQuery(name, min, max, minInclude, maxInclude);
       }
       case NULL: {
-        throw new AssertionError();
+        throw new IndexException(type.name() + " not supported");
       }
       case VALUE_ID:
-        throw new AssertionError();
+        throw new IndexException(type.name() + " not supported");
     }
 
     throw new AssertionError(minRange);
@@ -243,8 +242,7 @@ public class LuceneQueryBuilder {
         return NumericRangeQuery.newIntRange(term.getName(), min, max, minInclude, maxInclude);
       }
       case BYTE_ARRAY:
-        // XXX: This type is unexpected here!
-        throw new AssertionError();
+        throw new IndexException(type.name() + " not supported");
       case BYTE: {
         Integer min = below ? null : Integer.valueOf(((ByteNVPair) term).getValue());
         Integer max = below ? Integer.valueOf(((ByteNVPair) term).getValue()) : null;
@@ -301,10 +299,10 @@ public class LuceneQueryBuilder {
         return new TermRangeQuery(term.getName(), min, max, minInclude, maxInclude);
       }
       case NULL: {
-        throw new AssertionError();
+        throw new IndexException(type.name() + " not supported");
       }
       case VALUE_ID:
-        throw new AssertionError();
+        throw new IndexException(type.name() + " not supported");
     }
 
     throw new AssertionError(term.toString());
@@ -352,8 +350,7 @@ public class LuceneQueryBuilder {
         ByteNVPair bytePair = (ByteNVPair) term;
         return new TermQuery(new Term(term.getName(), NumericUtils.intToPrefixCoded(bytePair.getValue())));
       case BYTE_ARRAY:
-        // XXX: This type is unexpected here!
-        break;
+        throw new IndexException(type.name() + " not supported");
       case CHAR:
         CharNVPair charPair = (CharNVPair) term;
         return new TermQuery(new Term(term.getName(), NumericUtils.intToPrefixCoded(charPair.getValue())));
@@ -386,9 +383,9 @@ public class LuceneQueryBuilder {
       case STRING:
         break;
       case NULL:
-        throw new AssertionError();
+        throw new IndexException(type.name() + " not supported");
       case VALUE_ID:
-        throw new AssertionError();
+        throw new IndexException(type.name() + " not supported");
     }
 
     return new TermQuery(new Term(term.getName(), term.valueAsString().toLowerCase()));

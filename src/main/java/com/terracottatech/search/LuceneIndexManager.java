@@ -276,10 +276,11 @@ public class LuceneIndexManager {
   }
 
   public void replace(String indexName, String key, ValueID value, ValueID previousValue, List<NVPair> attributes,
-                      long segmentId, ProcessingContext context) throws IndexException {
+                      List<NVPair> storeOnlyAttributes, long segmentId, ProcessingContext context)
+      throws IndexException {
     IndexGroup group = getGroup(indexName);
     if (group != null) {
-      group.replaceIfPresent(key, value, previousValue, attributes, segmentId, context);
+      group.replaceIfPresent(key, value, previousValue, attributes, storeOnlyAttributes, segmentId, context);
     } else {
       logger.info("Replace ignored: no such index group [" + indexName + "] exists");
       context.processed();
@@ -297,17 +298,17 @@ public class LuceneIndexManager {
     }
   }
 
-  public void update(String indexName, String key, ValueID value, List<NVPair> attributes, long segmentId,
-                     ProcessingContext context) throws IndexException {
+  public void update(String indexName, String key, ValueID value, List<NVPair> attributes,
+                     List<NVPair> storeOnlyAttributes, long segmentId, ProcessingContext context) throws IndexException {
     // Get or create here b/c draining the journal will do a blind update due to a possible race with index sync
     IndexGroup group = getOrCreateGroup(indexName, attributes, false);
-    group.update(key, value, attributes, segmentId, context);
+    group.update(key, value, attributes, storeOnlyAttributes, segmentId, context);
   }
 
-  public void insert(String indexName, String key, ValueID value, List<NVPair> attributes, long segmentId,
-                     ProcessingContext context) throws IndexException {
+  public void insert(String indexName, String key, ValueID value, List<NVPair> attributes,
+                     List<NVPair> storeOnlyAttributes, long segmentId, ProcessingContext context) throws IndexException {
     IndexGroup group = getOrCreateGroup(indexName, attributes, false);
-    group.insert(key, value, attributes, segmentId, context);
+    group.insert(key, value, attributes, storeOnlyAttributes, segmentId, context);
   }
 
   public void clear(String indexName, long segmentId, ProcessingContext context) throws IndexException {
@@ -540,11 +541,12 @@ public class LuceneIndexManager {
     }
 
     private void replaceIfPresent(String key, ValueID value, ValueID previousValue, List<NVPair> attributes,
-                                  long segmentId, ProcessingContext context) throws IndexException {
+                                  List<NVPair> storeOnlyAttributes, long segmentId, ProcessingContext context)
+        throws IndexException {
       LuceneIndex index = getIndex(segmentId);
       if (index == null) throw new IndexException("Unable to run replaceIfPresent: segment " + segmentId
                                                   + " has no index in group " + groupName);
-      index.replaceIfPresent(key, value, previousValue, attributes, segmentId, context);
+      index.replaceIfPresent(key, value, previousValue, attributes, storeOnlyAttributes, segmentId, context);
     }
 
     private void removeIfValueEqual(Map<String, ValueID> toRemove, long segmentId, ProcessingContext context)
@@ -571,20 +573,20 @@ public class LuceneIndexManager {
 
     }
 
-    private void update(String key, ValueID value, List<NVPair> attributes, long segmentId, ProcessingContext context)
-        throws IndexException {
+    private void update(String key, ValueID value, List<NVPair> attributes, List<NVPair> storeOnlyAttributes,
+                        long segmentId, ProcessingContext context) throws IndexException {
       LuceneIndex index = getIndex(segmentId);
       if (index == null) throw new IndexException("Unable to run update: segment " + segmentId
                                                   + " has no index in group " + groupName);
-      index.update(key, value, attributes, segmentId, context);
+      index.update(key, value, attributes, storeOnlyAttributes, segmentId, context);
     }
 
-    private void insert(String key, ValueID value, List<NVPair> attributes, long segmentId, ProcessingContext context)
-        throws IndexException {
+    private void insert(String key, ValueID value, List<NVPair> attributes, List<NVPair> storeOnlyAttributes,
+                        long segmentId, ProcessingContext context) throws IndexException {
       LuceneIndex index = getIndex(segmentId);
       if (index == null) throw new IndexException("Unable to run insert: segment " + segmentId
                                                   + " has no index in group " + groupName);
-      index.insert(key, value, attributes, segmentId, context);
+      index.insert(key, value, attributes, storeOnlyAttributes, segmentId, context);
     }
 
     private Map<String, Collection<Aggregator>> createAggregators(List<NVPair> requestedAggregators) {
