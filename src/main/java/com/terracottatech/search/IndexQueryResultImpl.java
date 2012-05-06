@@ -6,7 +6,8 @@ package com.terracottatech.search;
 import java.util.Collections;
 import java.util.List;
 
-public class IndexQueryResultImpl implements IndexQueryResult {
+// FIXME: change back to IndexQueryResult when merging the rest of group by to trunk
+public class IndexQueryResultImpl implements NonGroupedQueryResult {
 
   private final String       key;
   private final List<NVPair> attributes;
