@@ -72,15 +72,16 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-class LuceneIndex {
+public class LuceneIndex {
 
   private static final ExecutorService     s_commitThreadPool    = Executors.newFixedThreadPool(1);
 
   static final String                      TERRACOTTA_INIT_FILE  = "__terracotta_init.txt";
 
+  public static final String               KEY_BYTES_FIELD_NAME  = "__TC_KEY_BYTES";
+  public static final String               SEGMENT_ID_FIELD_NAME = "__TC_SEGMENT_ID";
   static final String                      KEY_FIELD_NAME        = "__TC_KEY_FIELD";
   static final String                      VALUE_FIELD_NAME      = "__TC_VALUE_FIELD";
-  static final String                      SEGMENT_ID_FIELD_NAME = "__TC_SEGMENT_ID";
 
   private static final FieldSelector       VALUE_ONLY_SELECTOR   = valueOnlySelector();
 
@@ -100,7 +101,8 @@ class LuceneIndex {
 
   private final AtomicReference<Thread>    accessor              = new AtomicReference<Thread>();
 
-  private boolean                          snapshotTaken         = false;                           // XXX - change to
+  private boolean                          snapshotTaken         = false;                           // XXX - change
+                                                                                                     // to
                                                                                                      // snapshot name
                                                                                                      // when upgrading
                                                                                                      // to Lucene 3.5+
@@ -300,6 +302,7 @@ class LuceneIndex {
         for (String attrKey : attributeSet) {
           // XXX: type lookup can be done up front
           ValueType type = idxGroup.getSchema().get(attrKey);
+
           Object attrValue = getFieldValue(doc, attrKey, type);
           if (attrValue != null) {
             attributes.add(AbstractNVPair.createNVPair(attrKey, attrValue, type));
@@ -325,7 +328,9 @@ class LuceneIndex {
 
       return new SearchResult(results, Collections.EMPTY_LIST /* placeholder for aggregators */, docIds.size() > 0);
     } catch (Exception e) {
-      // XXX: This is perhaps too broad
+      // XXX: This catch is perhaps too broad
+
+      if (e instanceof IndexException) { throw (IndexException) e; }
       throw new IndexException(e);
     } finally {
       if (indexReader != null) {
@@ -571,7 +576,7 @@ class LuceneIndex {
         case ENUM:
           EnumNVPair enumPair = (EnumNVPair) nvpair;
           doc.add(createField(attrName, AbstractNVPair.enumStorageString(enumPair),
-                              indexed ? Field.Index.ANALYZED_NO_NORMS : Field.Index.NO));
+                              indexed ? Field.Index.NOT_ANALYZED_NO_NORMS : Field.Index.NO));
           continue;
         case FLOAT:
           FloatNVPair floatNVPair = (FloatNVPair) nvpair;
@@ -701,6 +706,7 @@ class LuceneIndex {
 
   private int getSortFieldType(String attributeName) throws IndexException {
     ValueType valueType = idxGroup.getSchema().get(attributeName);
+    if (valueType == null) { throw new IndexException("no such attribute named [" + attributeName + "]"); }
 
     switch (valueType) {
       case BOOLEAN:

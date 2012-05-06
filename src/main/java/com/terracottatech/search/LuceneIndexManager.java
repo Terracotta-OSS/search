@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -444,13 +445,16 @@ public class LuceneIndexManager {
 
     private IndexGroup(String name, boolean load) throws IndexException {
       groupName = name;
+
+      // This can be queried as an attribute so always establish this type
+      schema.put(LuceneIndex.SEGMENT_ID_FIELD_NAME, ValueType.LONG);
+
       try {
         Util.ensureDirectory(getPath());
         createIndices(load);
       } catch (IOException x) {
         throw new IndexException(x);
       }
-
     }
 
     private void close() {
@@ -714,9 +718,14 @@ public class LuceneIndexManager {
         }
         mergeResult = new SearchResult(mergeResult.getQueryResults(), mergeResult.getAggregators(), isAny);
 
-      } catch (Exception ex) {
-        logger.error(String.format("Search executor for index group %s threw exception: ", groupName), ex);
-        throw new IndexException(ex);
+      } catch (Throwable t) {
+        if (t instanceof ExecutionException) {
+          t = t.getCause();
+        }
+        logger.error(String.format("Search executor for index group %s threw exception: ", groupName), t);
+
+        if (t instanceof IndexException) { throw (IndexException) t; }
+        throw new IndexException(t);
       }
 
       List<IndexQueryResult> allQueryResults;
