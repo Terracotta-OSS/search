@@ -716,7 +716,7 @@ public class LuceneIndex {
           continue;
         case STRING:
           StringNVPair stringNVPair = (StringNVPair) nvpair;
-          addStringField(doc, attrName, stringNVPair.getName(), indexed);
+          addStringField(doc, attrName, stringNVPair.getValue(), indexed);
           continue;
         case NULL:
           throw new AssertionError();
