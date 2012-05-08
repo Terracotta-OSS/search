@@ -55,7 +55,6 @@ public class LuceneIndexManagerTest extends TestCase {
   }
 
   public void testOptimize() throws Exception {
-
     assertEquals(0, idxManager.getSearchIndexNames().length);
 
     idxManager.insert("foo", "key", new ValueID(12), EMPTY, EMPTY, 34, new NullProcessingContext());
@@ -557,6 +556,32 @@ public class LuceneIndexManagerTest extends TestCase {
                          new NullProcessingContext());
     }
     assertEquals(1, res.size());
+  }
+
+  public void testUpdateKey() throws IndexException {
+    assertEquals(0, idxManager.getSearchIndexNames().length);
+    List<NVPair> attributes = new ArrayList<NVPair>();
+
+    attributes.add(new AbstractNVPair.StringNVPair("attr1", "foo"));
+    attributes.add(new AbstractNVPair.IntNVPair("numeric", 1));
+
+    idxManager.insert("foo", "key", new ValueID(1), attributes, EMPTY, 0, new NullProcessingContext());
+
+    LinkedList queryStack = new LinkedList();
+    queryStack.addFirst(AbstractNVPair.createNVPair("numeric", 1));
+    queryStack.addFirst(StackOperations.TERM);
+    SearchResult searchResult = idxManager.searchIndex("foo", queryStack, true, true, Collections.EMPTY_SET,
+                                                       new ArrayList<NVPair>(), new ArrayList<NVPair>(), -1);
+
+    List<IndexQueryResult> res = searchResult.getQueryResults();
+    assertEquals(1, res.size());
+    assertEquals("key", res.get(0).getKey());
+
+    idxManager.updateKey("foo", "key", "newKey", 0, new NullProcessingContext());
+    res = idxManager.searchIndex("foo", queryStack, true, true, Collections.EMPTY_SET, new ArrayList<NVPair>(),
+                                 new ArrayList<NVPair>(), -1).getQueryResults();
+    assertEquals(1, res.size());
+    assertEquals("newKey", res.get(0).getKey());
   }
 
   public void testIncompleteIndexGroup() throws IndexException, IOException {

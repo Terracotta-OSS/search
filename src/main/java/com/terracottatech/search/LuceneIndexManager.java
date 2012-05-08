@@ -312,6 +312,17 @@ public class LuceneIndexManager {
     group.insert(key, value, attributes, storeOnlyAttributes, segmentId, context);
   }
 
+  public void updateKey(String indexName, String existingKey, String newKey, int segmentId, ProcessingContext context)
+      throws IndexException {
+    IndexGroup group = getGroup(indexName);
+    if (group != null) {
+      group.updateKey(existingKey, newKey, segmentId, context);
+    } else {
+      context.processed();
+      throw new IndexException("No such group [" + indexName + "] exists");
+    }
+  }
+
   public void clear(String indexName, long segmentId, ProcessingContext context) throws IndexException {
     IndexGroup group = getGroup(indexName);
     if (group != null) {
@@ -446,7 +457,10 @@ public class LuceneIndexManager {
     private IndexGroup(String name, boolean load) throws IndexException {
       groupName = name;
 
-      // This can be queried as an attribute so always establish this type
+      // always set the type for our internal fields
+      schema.put(LuceneIndex.KEY_FIELD_NAME, ValueType.STRING);
+      schema.put(LuceneIndex.KEY_BYTES_FIELD_NAME, ValueType.BYTE_ARRAY);
+      schema.put(LuceneIndex.VALUE_FIELD_NAME, ValueType.LONG);
       schema.put(LuceneIndex.SEGMENT_ID_FIELD_NAME, ValueType.LONG);
 
       try {
@@ -591,6 +605,14 @@ public class LuceneIndexManager {
       if (index == null) throw new IndexException("Unable to run insert: segment " + segmentId
                                                   + " has no index in group " + groupName);
       index.insert(key, value, attributes, storeOnlyAttributes, segmentId, context);
+    }
+
+    public void updateKey(String existingKey, String newKey, int segmentId, ProcessingContext context)
+        throws IndexException {
+      LuceneIndex index = getIndex(segmentId);
+      if (index == null) throw new IndexException("Unable to run updateKey: segment " + segmentId
+                                                  + " has no index in group " + groupName);
+      index.updateKey(existingKey, newKey, segmentId, context);
     }
 
     private Map<String, Collection<Aggregator>> createAggregators(List<NVPair> requestedAggregators) {

@@ -7,6 +7,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldSelector;
+import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.document.NumericField;
 import org.apache.lucene.document.SetBasedFieldSelector;
 import org.apache.lucene.index.CorruptIndexException;
@@ -498,6 +499,126 @@ public class LuceneIndex {
       context.processed();
       throw ie;
     }
+  }
+
+  public void updateKey(String existingKey, String newKey, int segmentId, ProcessingContext context)
+      throws IndexException {
+    try {
+      updateKeyInternal(existingKey, newKey);
+      addPendingContext(context);
+    } catch (IndexException ie) {
+      context.processed();
+      throw ie;
+    }
+  }
+
+  private void updateKeyInternal(String existingKey, String newKey) throws IndexException {
+    IndexReader indexReader = null;
+    try {
+      indexReader = getNewReader();
+      IndexSearcher searcher = new IndexSearcher(indexReader);
+
+      Query query = new TermQuery(new Term(KEY_FIELD_NAME, existingKey));
+
+      TopDocs docs = searcher.search(query, 2);
+      if (docs.scoreDocs.length > 1) { throw new AssertionError("more than one result for key: " + existingKey); }
+      if (docs.scoreDocs.length == 0) { throw new IndexException("No such document for key: " + existingKey); }
+
+      int docId = docs.scoreDocs[0].doc;
+      Document oldDoc = indexReader.document(docId);
+      Document newDoc = new Document();
+      addKeyField(newDoc, newKey);
+
+      for (Fieldable f : oldDoc.getFields()) {
+        String fieldName = f.name();
+        if (!fieldName.equals(KEY_FIELD_NAME)) {
+          ValueType fieldType = idxGroup.getSchema().get(fieldName);
+          if (fieldType == null) { throw new AssertionError("missing type for field " + fieldName); }
+          Object value = getFieldValue(oldDoc, fieldName, fieldType);
+          addField(newDoc, fieldName, value, fieldType, f.isIndexed());
+        }
+      }
+
+      writer.updateDocument(new Term(KEY_FIELD_NAME, existingKey), newDoc);
+    } catch (IOException e) {
+      throw new IndexException(e);
+    } finally {
+      if (indexReader != null) {
+        try {
+          indexReader.close();
+        } catch (IOException e) {
+          // XXX: do we need to take more action on this exception?
+          logger.error(e);
+        }
+      }
+    }
+  }
+
+  private void addField(Document doc, String fieldName, Object value, ValueType fieldType, boolean indexed)
+      throws IndexException {
+    switch (fieldType) {
+      case BOOLEAN: {
+        addBooleanField(doc, fieldName, (Boolean) value, indexed);
+        return;
+      }
+      case BYTE: {
+        addByteField(doc, fieldName, (Byte) value, indexed);
+        return;
+      }
+      case BYTE_ARRAY: {
+        addByteArrayField(doc, fieldName, (byte[]) value, indexed);
+        return;
+      }
+      case CHAR: {
+        addCharField(doc, fieldName, (Character) value, indexed);
+        return;
+      }
+      case DATE: {
+        addDateField(doc, fieldName, (Date) value, indexed);
+        return;
+      }
+      case SQL_DATE: {
+        addSqlDateField(doc, fieldName, (java.sql.Date) value, indexed);
+        return;
+      }
+      case DOUBLE: {
+        addDoubleField(doc, fieldName, (Double) value, indexed);
+        return;
+      }
+      case ENUM: {
+        addEnumField(doc, fieldName, (String) value, indexed);
+        return;
+      }
+      case FLOAT: {
+        addFloatField(doc, fieldName, (Float) value, indexed);
+        return;
+      }
+      case INT: {
+        addIntField(doc, fieldName, (Integer) value, indexed);
+        return;
+      }
+      case LONG: {
+        addLongField(doc, fieldName, (Long) value, indexed);
+        return;
+      }
+      case NULL: {
+        throw new AssertionError();
+      }
+      case SHORT: {
+        addShortField(doc, fieldName, (Short) value, indexed);
+        return;
+      }
+      case STRING: {
+        addStringField(doc, fieldName, (String) value, indexed);
+        return;
+      }
+      case VALUE_ID: {
+        addValueIdField(doc, fieldName, (ValueID) value, indexed);
+        return;
+      }
+    }
+
+    throw new AssertionError(fieldType);
 
   }
 
@@ -513,7 +634,7 @@ public class LuceneIndex {
 
     Document doc = new Document();
 
-    doc.add(new Field(KEY_FIELD_NAME, key, Field.Store.YES, Field.Index.NOT_ANALYZED_NO_NORMS));
+    addKeyField(doc, key);
 
     doc.add(createNumericField(VALUE_FIELD_NAME, true).setLongValue(value.toLong()));
 
@@ -535,6 +656,10 @@ public class LuceneIndex {
     }
   }
 
+  private static void addKeyField(Document doc, String key) {
+    doc.add(new Field(KEY_FIELD_NAME, key, Field.Store.YES, Field.Index.NOT_ANALYZED_NO_NORMS));
+  }
+
   private void addFields(Document doc, List<NVPair> attributes, boolean indexed) throws IndexException {
     for (NVPair nvpair : attributes) {
       String attrName = nvpair.getName();
@@ -543,71 +668,127 @@ public class LuceneIndex {
       switch (type) {
         case BOOLEAN:
           BooleanNVPair booleanPair = (BooleanNVPair) nvpair;
-          if (booleanPair.getValue()) {
-            doc.add(createNumericField(attrName, indexed).setIntValue(1));
-          } else {
-            doc.add(createNumericField(attrName, indexed).setIntValue(0));
-          }
+          addBooleanField(doc, attrName, booleanPair.getValue(), indexed);
           continue;
         case BYTE:
           ByteNVPair bytePair = (ByteNVPair) nvpair;
-          doc.add(createNumericField(attrName, indexed).setIntValue(bytePair.getValue()));
+          addByteField(doc, attrName, bytePair.getValue(), indexed);
           continue;
         case BYTE_ARRAY:
-          if (indexed) { throw new IndexException(type.name() + " attributes can only be stored (not indexed)"); }
-          doc.add(new Field(attrName, ((ByteArrayNVPair) nvpair).getValue(), Field.Store.YES));
+          ByteArrayNVPair byteArrayPair = (ByteArrayNVPair) nvpair;
+          addByteArrayField(doc, attrName, byteArrayPair.getValue(), indexed);
           continue;
         case CHAR:
           CharNVPair charPair = (CharNVPair) nvpair;
-          doc.add(createNumericField(attrName, indexed).setIntValue(charPair.getValue()));
+          addCharField(doc, attrName, charPair.getValue(), indexed);
           continue;
         case DATE:
           DateNVPair datePair = (DateNVPair) nvpair;
-          doc.add(createNumericField(attrName, indexed).setLongValue(datePair.getValue().getTime()));
+          addDateField(doc, attrName, datePair.getValue(), indexed);
           continue;
         case SQL_DATE:
           SqlDateNVPair sqlDatePair = (SqlDateNVPair) nvpair;
-          doc.add(createNumericField(attrName, indexed).setLongValue(sqlDatePair.getValue().getTime()));
+          addSqlDateField(doc, attrName, sqlDatePair.getValue(), indexed);
           continue;
         case DOUBLE:
           DoubleNVPair doubleNVPair = (DoubleNVPair) nvpair;
-          doc.add(createNumericField(attrName, indexed).setDoubleValue(doubleNVPair.getValue()));
+          addDoubleField(doc, attrName, doubleNVPair.getValue(), indexed);
           continue;
         case ENUM:
           EnumNVPair enumPair = (EnumNVPair) nvpair;
-          doc.add(createField(attrName, AbstractNVPair.enumStorageString(enumPair),
-                              indexed ? Field.Index.NOT_ANALYZED_NO_NORMS : Field.Index.NO));
+          addEnumField(doc, attrName, AbstractNVPair.enumStorageString(enumPair), indexed);
           continue;
         case FLOAT:
           FloatNVPair floatNVPair = (FloatNVPair) nvpair;
-          doc.add(createNumericField(attrName, indexed).setFloatValue(floatNVPair.getValue()));
+          addFloatField(doc, attrName, floatNVPair.getValue(), indexed);
           continue;
         case INT:
           IntNVPair intNVPair = (IntNVPair) nvpair;
-          doc.add(createNumericField(attrName, indexed).setIntValue(intNVPair.getValue()));
+          addIntField(doc, attrName, intNVPair.getValue(), indexed);
           continue;
         case LONG:
           LongNVPair longNVPair = (LongNVPair) nvpair;
-          doc.add(createNumericField(attrName, indexed).setLongValue(longNVPair.getValue()));
+          addLongField(doc, attrName, longNVPair.getValue(), indexed);
           continue;
         case SHORT:
           ShortNVPair shortNVPair = (ShortNVPair) nvpair;
-          doc.add(createNumericField(attrName, indexed).setIntValue(shortNVPair.getValue()));
+          addShortField(doc, attrName, shortNVPair.getValue(), indexed);
           continue;
         case STRING:
           StringNVPair stringNVPair = (StringNVPair) nvpair;
-          doc.add(createField(attrName, stringNVPair.getValue(), indexed ? Field.Index.ANALYZED_NO_NORMS
-              : Field.Index.NO));
+          addStringField(doc, attrName, stringNVPair.getName(), indexed);
           continue;
         case NULL:
           throw new AssertionError();
         case VALUE_ID:
           ValueIdNVPair oidNVPair = (ValueIdNVPair) nvpair;
-          doc.add(createNumericField(attrName, indexed).setLongValue(oidNVPair.getValue().toLong()));
+          addValueIdField(doc, attrName, oidNVPair.getValue(), indexed);
           continue;
       }
 
       throw new AssertionError(type.name());
+    }
+  }
+
+  private static void addValueIdField(Document doc, String fieldName, ValueID value, boolean indexed) {
+    doc.add(createNumericField(fieldName, indexed).setLongValue(value.toLong()));
+  }
+
+  private static void addStringField(Document doc, String fieldName, String value, boolean indexed) {
+    doc.add(createField(fieldName, value, indexed ? Field.Index.ANALYZED_NO_NORMS : Field.Index.NO));
+  }
+
+  private static void addShortField(Document doc, String fieldName, short value, boolean indexed) {
+    doc.add(createNumericField(fieldName, indexed).setIntValue(value));
+  }
+
+  private static void addLongField(Document doc, String fieldName, long value, boolean indexed) {
+    doc.add(createNumericField(fieldName, indexed).setLongValue(value));
+  }
+
+  private static void addIntField(Document doc, String attrName, int value, boolean indexed) {
+    doc.add(createNumericField(attrName, indexed).setIntValue(value));
+  }
+
+  private static void addFloatField(Document doc, String attrName, float value, boolean indexed) {
+    doc.add(createNumericField(attrName, indexed).setFloatValue(value));
+  }
+
+  private static void addEnumField(Document doc, String attrName, String enumStorageString, boolean indexed) {
+    doc.add(createField(attrName, enumStorageString, indexed ? Field.Index.NOT_ANALYZED_NO_NORMS : Field.Index.NO));
+  }
+
+  private static void addDoubleField(Document doc, String attrName, double value, boolean indexed) {
+    doc.add(createNumericField(attrName, indexed).setDoubleValue(value));
+  }
+
+  private static void addSqlDateField(Document doc, String attrName, java.sql.Date value, boolean indexed) {
+    doc.add(createNumericField(attrName, indexed).setLongValue(value.getTime()));
+  }
+
+  private static void addDateField(Document doc, String attrName, Date value, boolean indexed) {
+    doc.add(createNumericField(attrName, indexed).setLongValue(value.getTime()));
+  }
+
+  private static void addCharField(Document doc, String attrName, char value, boolean indexed) {
+    doc.add(createNumericField(attrName, indexed).setIntValue(value));
+  }
+
+  private static void addByteArrayField(Document doc, String attrName, byte[] value, boolean indexed)
+      throws IndexException {
+    if (indexed) { throw new IndexException("byte array attributes can only be stored (not indexed)"); }
+    doc.add(new Field(attrName, value, Field.Store.YES));
+  }
+
+  private static void addByteField(Document doc, String attrName, byte value, boolean indexed) {
+    doc.add(createNumericField(attrName, indexed).setIntValue(value));
+  }
+
+  private static void addBooleanField(Document doc, String attrName, boolean value, boolean indexed) {
+    if (value) {
+      doc.add(createNumericField(attrName, indexed).setIntValue(1));
+    } else {
+      doc.add(createNumericField(attrName, indexed).setIntValue(0));
     }
   }
 
@@ -660,11 +841,11 @@ public class LuceneIndex {
     return sort;
   }
 
-  private Field createField(String attrName, String value, Field.Index index) {
+  private static Field createField(String attrName, String value, Field.Index index) {
     return new Field(attrName, value, Field.Store.YES, index);
   }
 
-  private NumericField createNumericField(String attrName, boolean indexed) {
+  private static NumericField createNumericField(String attrName, boolean indexed) {
     return new NumericField(attrName, Field.Store.YES, indexed);
   }
 
