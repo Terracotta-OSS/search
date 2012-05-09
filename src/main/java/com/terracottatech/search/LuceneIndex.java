@@ -51,6 +51,7 @@ import com.terracottatech.search.AbstractNVPair.SqlDateNVPair;
 import com.terracottatech.search.AbstractNVPair.StringNVPair;
 import com.terracottatech.search.AbstractNVPair.ValueIdNVPair;
 import com.terracottatech.search.LuceneIndexManager.IndexGroup;
+import com.terracottatech.search.aggregator.Aggregator;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -61,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -254,7 +256,8 @@ public class LuceneIndex {
   }
 
   SearchResult search(List queryStack, boolean includeKeys, boolean includeValues, Set<String> attributeSet,
-                      List<NVPair> sortAttributes, int maxResults, boolean incCount) throws IndexException {
+                      Set<String> groupByAttributes, List<NVPair> sortAttributes, int maxResults, boolean incCount)
+      throws IndexException {
 
     IndexReader indexReader = null;
     try {
@@ -266,7 +269,11 @@ public class LuceneIndex {
 
       final DocIdList docIds;
 
-      if (sortAttributes.size() > 0) {
+      boolean isGroupBy = !groupByAttributes.isEmpty();
+
+      if (isGroupBy) maxResults = -1; // unbounded if doing a grouped search - to be grouped higher up
+
+      if (!isGroupBy && sortAttributes.size() > 0) {
         if (maxResults == 0) {
           docIds = new EmptyDocIdList();
         } else {
@@ -297,8 +304,11 @@ public class LuceneIndex {
         String key = includeKeys ? doc.get(KEY_FIELD_NAME) : null;
         ValueID value = includeValues ? new ValueID(Long.parseLong(doc.get(VALUE_FIELD_NAME))) : ValueID.NULL_ID;
 
-        List<NVPair> attributes = attributeSet.isEmpty() ? Collections.EMPTY_LIST : new ArrayList();
-        List<NVPair> sortAttributesList = sortAttributes.isEmpty() ? Collections.EMPTY_LIST : new ArrayList();
+        final List<NVPair> attributes = attributeSet.isEmpty() ? Collections.EMPTY_LIST
+            : new ArrayList<NVPair>(attributeSet.size());
+        Set<NVPair> groupByAttrs = isGroupBy ? new HashSet<NVPair>(groupByAttributes.size()) : Collections.EMPTY_SET;
+        List<NVPair> sortAttributesList = sortAttributes.isEmpty() ? Collections.EMPTY_LIST
+            : new ArrayList<NVPair>(sortAttributes.size());
 
         for (String attrKey : attributeSet) {
           // XXX: type lookup can be done up front
@@ -307,6 +317,14 @@ public class LuceneIndex {
           Object attrValue = getFieldValue(doc, attrKey, type);
           if (attrValue != null) {
             attributes.add(AbstractNVPair.createNVPair(attrKey, attrValue, type));
+          }
+        }
+
+        for (String attrKey : groupByAttributes) {
+          ValueType type = idxGroup.getSchema().get(attrKey);
+          Object attrValue = getFieldValue(doc, attrKey, type);
+          if (attrValue != null) {
+            groupByAttrs.add(AbstractNVPair.createNVPair(attrKey, attrValue, type));
           }
         }
 
@@ -323,7 +341,9 @@ public class LuceneIndex {
             }
           }
 
-          results.add(new IndexQueryResultImpl(key, value, attributes, sortAttributesList));
+          results.add(isGroupBy ? new GroupedIndexQueryResultImpl(attributes, sortAttributesList, groupByAttrs,
+                                                                  new ArrayList<Aggregator>())
+              : new NonGroupedIndexQueryResultImpl(key, value, attributes, sortAttributesList));
         }
       }
 

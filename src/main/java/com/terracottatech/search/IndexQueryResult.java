@@ -13,20 +13,6 @@ import java.util.List;
 public interface IndexQueryResult {
 
   /**
-   * Entry key.
-   * 
-   * @return key
-   */
-  public String getKey();
-
-  /**
-   * Entry value.
-   * 
-   * @return value
-   */
-  public ValueID getValue();
-
-  /**
    * Entry attributes.
    * 
    * @return attributes

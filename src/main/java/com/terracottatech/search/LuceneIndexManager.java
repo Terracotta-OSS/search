@@ -22,6 +22,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -67,7 +68,9 @@ public class LuceneIndexManager {
 
   static final String                                 TERRACOTTA_CACHE_NAME_FILE = "__terracotta_cache_name.txt";
   static final String                                 TERRACOTTA_SCHEMA_FILE     = "__terracotta_schema.properties";
-  private static final String                         COUNT_AGG_NAME             = "COUNT";
+  private static final String                         COUNT_AGG_NAME             = "__TC_AGG_COUNT"
+                                                                                   + LuceneIndexManager.class
+                                                                                       .hashCode();
 
   public LuceneIndexManager(File indexDir, boolean isPermStore, LoggerFactory loggerFactory, Configuration cfg) {
     this.loggerFactory = loggerFactory;
@@ -220,16 +223,16 @@ public class LuceneIndexManager {
 
   public SearchResult searchIndex(String name, final List queryStack, final boolean includeKeys,
                                   final boolean includeValues, final Set<String> attributeSet,
-                                  final List<NVPair> sortAttributes, final List<NVPair> aggregators,
-                                  final int maxResults) throws IndexException {
+                                  Set<String> groupByAttributes, final List<NVPair> sortAttributes,
+                                  final List<NVPair> aggregators, final int maxResults) throws IndexException {
     IndexGroup indexes = getGroup(name);
     if (indexes == null) {
       // Return empty set, since index might not exist on this stripe
       return SearchResult.NULL_RESULT;
     }
 
-    return indexes.searchIndex(queryStack, includeKeys, includeValues, attributeSet, sortAttributes, aggregators,
-                               maxResults);
+    return indexes.searchIndex(queryStack, includeKeys, includeValues, attributeSet, groupByAttributes, sortAttributes,
+                               aggregators, maxResults);
 
   }
 
@@ -469,6 +472,7 @@ public class LuceneIndexManager {
       } catch (IOException x) {
         throw new IndexException(x);
       }
+
     }
 
     private void close() {
@@ -588,7 +592,6 @@ public class LuceneIndexManager {
       if (index == null) throw new IndexException("Unable to run clear: segment " + segmentId
                                                   + " has no index in group " + groupName);
       index.clear(segmentId, context);
-
     }
 
     private void update(String key, ValueID value, List<NVPair> attributes, List<NVPair> storeOnlyAttributes,
@@ -615,10 +618,10 @@ public class LuceneIndexManager {
       index.updateKey(existingKey, newKey, segmentId, context);
     }
 
-    private Map<String, Collection<Aggregator>> createAggregators(List<NVPair> requestedAggregators) {
+    private Map<String, List<Aggregator>> createAggregators(List<NVPair> requestedAggregators) {
       if (requestedAggregators.isEmpty()) { return Collections.EMPTY_MAP; }
 
-      Map<String, Collection<Aggregator>> rv = new HashMap<String, Collection<Aggregator>>();
+      Map<String, List<Aggregator>> rv = new HashMap<String, List<Aggregator>>();
       NVPair count = null;
       for (NVPair aggregator : requestedAggregators) {
         String attrName = aggregator.getName();
@@ -626,18 +629,18 @@ public class LuceneIndexManager {
         // Whoa this is ugly. The count aggregator NVPair is special in that it is not tied to any
         // attributes. Instead of returning the name of associated attribute, it simply returns COUNT for getName().
         // So create a separate entry in the map for it, and treat it specially in the caller method.
-        if (attrName.equals(COUNT_AGG_NAME)) {
+        if (AggregatorOperations.COUNT.equals(aggregator.getObjectValue())) {
           count = aggregator;
           continue;
         }
-        Collection<Aggregator> attrAggregators = rv.get(attrName);
+        List<Aggregator> attrAggregators = rv.get(attrName);
         if (attrAggregators == null) {
           attrAggregators = new ArrayList<Aggregator>();
           rv.put(attrName, attrAggregators);
         }
         attrAggregators.add(createAggregator(aggregator));
       }
-      if (count != null) rv.put(count.getName(), Collections.singletonList(createAggregator(count)));
+      if (count != null) rv.put(COUNT_AGG_NAME, Collections.singletonList(createAggregator(count)));
 
       return rv;
     }
@@ -684,13 +687,14 @@ public class LuceneIndexManager {
     }
 
     private SearchResult searchIndex(final List queryStack, final boolean includeKeys, final boolean includeValues,
-                                     final Set<String> attributeSet, final List<NVPair> sortAttributes,
-                                     final List<NVPair> aggPairs, final int maxResults) throws IndexException {
+                                     final Set<String> attributeSet, final Set<String> groupByAttributes,
+                                     final List<NVPair> sortAttributes, final List<NVPair> aggPairs,
+                                     final int maxResults) throws IndexException {
       SearchResult mergeResult = new SearchResult(new ArrayList<IndexQueryResult>(), new ArrayList<Aggregator>(), false);
-
+      boolean isGroupBy = !groupByAttributes.isEmpty();
       Collection<Callable<SearchResult>> searchTasks = new ArrayList<Callable<SearchResult>>();
 
-      final Map<String, Collection<Aggregator>> aggregators;
+      final Map<String, List<Aggregator>> aggregators;
       try {
         aggregators = createAggregators(aggPairs);
       } catch (IllegalArgumentException e) {
@@ -709,7 +713,8 @@ public class LuceneIndexManager {
       for (final LuceneIndex idx : indices.values()) {
         searchTasks.add(new Callable<SearchResult>() {
           public SearchResult call() throws Exception {
-            return idx.search(queryStack, includeKeys, includeValues, attrs, sortAttributes, maxResults, includeCount);
+            return idx.search(queryStack, includeKeys, includeValues, attrs, groupByAttributes, sortAttributes,
+                              maxResults, includeCount);
           }
         });
       }
@@ -720,10 +725,10 @@ public class LuceneIndexManager {
         boolean isAny = mergeResult.isAnyCriteriaMatch();
         for (Future<SearchResult> fut : queryThreadPool.invokeAll(searchTasks)) {
           SearchResult curRes = fut.get();
-          List<IndexQueryResult> qRes = mergeResult.getQueryResults();
 
           isAny |= curRes.isAnyCriteriaMatch();
-          if (unOrdered) {
+          if (unOrdered && !isGroupBy) {
+            List<IndexQueryResult> qRes = mergeResult.getQueryResults();
             if (maxResults >= 0) {
               Iterator<IndexQueryResult> iter = curRes.getQueryResults().iterator();
               while (iter.hasNext() && qRes.size() < maxResults) {
@@ -734,11 +739,11 @@ public class LuceneIndexManager {
             }
             // grab everything
             else qRes.addAll(curRes.getQueryResults());
+            mergeResult = new SearchResult(mergeResult.getQueryResults(), mergeResult.getAggregators(), isAny);
           }
           // grab everything - we will sort and/or trim results below
           else stripeResults.add(curRes.getQueryResults());
         }
-        mergeResult = new SearchResult(mergeResult.getQueryResults(), mergeResult.getAggregators(), isAny);
 
       } catch (Throwable t) {
         if (t instanceof ExecutionException) {
@@ -750,9 +755,13 @@ public class LuceneIndexManager {
         throw new IndexException(t);
       }
 
-      List<IndexQueryResult> allQueryResults;
-      if (!unOrdered) {
-        allQueryResults = mergeSort(stripeResults, sortAttributes);
+      List<? extends IndexQueryResult> allQueryResults;
+      if (!unOrdered || isGroupBy) {
+
+        if (isGroupBy) {
+          // merge groups and sort (if needed) in one shot
+          allQueryResults = mergeGroups(stripeResults, sortAttributes, aggregators, attributeSet);
+        } else allQueryResults = mergeSort(stripeResults, sortAttributes);
 
         if (maxResults >= 0 && allQueryResults.size() > maxResults) {
           List<IndexQueryResult> trimmed = new ArrayList<IndexQueryResult>(allQueryResults.subList(0, maxResults));
@@ -762,60 +771,202 @@ public class LuceneIndexManager {
       }
       allQueryResults = mergeResult.getQueryResults();
 
-      if (includeCount) {
-        Collection<Aggregator> countAggs = aggregators.get(COUNT_AGG_NAME);
-        assert !countAggs.isEmpty();
-        Count count = (Count) countAggs.iterator().next();
-        count.increment(allQueryResults.size());
+      if (!isGroupBy) {
+        allQueryResults = mergeResult.getQueryResults();
 
-        // if no keys, values or any other attributes/aggregators to include, we are done!
-        if (!includeKeys && !includeValues && attrs.isEmpty()) allQueryResults.clear();
-      }
+        Count count = null;
+        if (includeCount) {
+          List<Aggregator> countAggs = aggregators.remove(COUNT_AGG_NAME); // 1 element collection
+          if (countAggs.isEmpty()) throw new AssertionError("Count aggregators: expected non-empty singleton list");
+          count = (Count) countAggs.iterator().next();
+          count.increment(allQueryResults.size());
 
-      if (!aggregators.isEmpty()) {
-        for (ListIterator<IndexQueryResult> rowItr = allQueryResults.listIterator(); rowItr.hasNext();) {
+          // if no keys, values or any other attributes/aggregators to include, we are done!
+          if (!includeKeys && !includeValues && attrs.isEmpty()) allQueryResults.clear();
+        }
 
-          // This is much uglier than it has to be, because getAttributes() returns an unmodifiable collection
-          IndexQueryResult row = rowItr.next();
-          List<NVPair> rowAttrs = new ArrayList<NVPair>(row.getAttributes());
+        if (!aggregators.isEmpty()) {
+          for (ListIterator<NonGroupedQueryResult> rowItr = (ListIterator<NonGroupedQueryResult>) allQueryResults
+              .listIterator(); rowItr.hasNext();) {
 
-          for (Iterator<NVPair> itr = rowAttrs.iterator(); itr.hasNext();) {
-            NVPair attr = itr.next();
-            Collection<Aggregator> attrAggs = aggregators.get(attr.getName());
-            if (attrAggs == null) continue;
+            // This is much uglier than it has to be, because getAttributes() returns an unmodifiable collection
+            NonGroupedQueryResult row = rowItr.next();
+            List<NVPair> rowAttrs = new ArrayList<NVPair>(row.getAttributes());
 
-            // Special case: if the attribute was not originally requested but instead added by us to enable
-            // aggregation,
-            // now remove it - unless
-            // maxResults is set (see DEV-7048 for details)
-            if (!attributeSet.contains(attr.getName()) && maxResults < 0) {
-              itr.remove();
-              if (rowAttrs.isEmpty() && !includeKeys && !includeValues) {
-                rowItr.remove();
-              } else rowItr.set(new IndexQueryResultImpl(row.getKey(), row.getValue(), rowAttrs, row
-                  .getSortAttributes()));
-            }
-            for (Aggregator agg : attrAggs) {
-              try {
-                // This reverse conversion to String is to prevent ClassCastException in
-                // AbstractNVPair.createNVPair(String, Object, ValueType) when aggregator is serialized back inside
-                // reply
-                // msg
-                agg.accept(ValueType.ENUM == attr.getType() ? AbstractNVPair.enumStorageString((EnumNVPair) attr)
-                    : attr.getObjectValue());
-              } catch (IllegalArgumentException e) {
-                throw new IndexException(e);
+            for (Iterator<NVPair> itr = rowAttrs.iterator(); itr.hasNext();) {
+              NVPair attr = itr.next();
+              Collection<Aggregator> attrAggs = aggregators.get(attr.getName());
+              if (attrAggs == null) continue;
+
+              // Special case: if the attribute was not originally requested but instead added by us to enable
+              // aggregation,
+              // now remove it - unless
+              // maxResults is set (see DEV-7048 for details)
+              if (!attributeSet.contains(attr.getName()) && maxResults < 0) {
+                itr.remove();
+                if (rowAttrs.isEmpty() && !includeKeys && !includeValues) {
+                  rowItr.remove();
+                } else rowItr.set(new NonGroupedIndexQueryResultImpl(row.getKey(), row.getValue(), rowAttrs, row
+                    .getSortAttributes()));
+              }
+              for (Aggregator agg : attrAggs) {
+                try {
+                  // This reverse conversion to String is to prevent ClassCastException in
+                  // AbstractNVPair.createNVPair(String, Object, ValueType) when aggregator is serialized back inside
+                  // reply
+                  // msg
+                  agg.accept(ValueType.ENUM == attr.getType() ? AbstractNVPair.enumStorageString((EnumNVPair) attr)
+                      : attr.getObjectValue());
+                } catch (IllegalArgumentException e) {
+                  throw new IndexException(e);
+                }
               }
             }
           }
         }
+
+        // XXX: Original order of aggregators not preserved here, but maybe it's okay
+        if (count != null) mergeResult.getAggregators().add(count);
+        for (Collection<Aggregator> attrAggs : aggregators.values())
+          mergeResult.getAggregators().addAll(attrAggs);
       }
-
-      for (Collection<Aggregator> attrAggs : aggregators.values())
-        mergeResult.getAggregators().addAll(attrAggs);
-
+      if (!aggPairs.isEmpty()) reorderAggregators(aggPairs, isGroupBy, mergeResult);
       return mergeResult;
 
+    }
+
+    /**
+     * Outbound aggregators no longer preserve original order, so make things right here
+     */
+    private void reorderAggregators(List<NVPair> requestedAggs, boolean isGroupBy,
+                                    SearchResult<? extends IndexQueryResult> result) {
+      Map<Set<String>, Integer> aggPositions = new HashMap<Set<String>, Integer>();
+
+      int n = 0, ctCt = 0;
+
+      for (NVPair reqAgg : requestedAggs) {
+        Set<String> key = new HashSet<String>(2);
+        String name = reqAgg.getName();
+
+        // Make count aggregator's name unique to enable multiple copies (if that's what the caller wants)
+        if (AggregatorOperations.COUNT.equals(reqAgg.getObjectValue())) {
+          name = COUNT_AGG_NAME + ctCt++;
+        }
+        key.add(name);
+        key.add(reqAgg.getObjectValue().toString()); // AggregatorOperations.toString()
+        Integer prev = aggPositions.put(key, n++);
+        if (prev != null) throw new AssertionError(String.format("Previous index mapping found for %s: %d", key, prev));
+      }
+
+      if (!isGroupBy) {
+        alignAggregators(aggPositions, result.getAggregators(), ctCt);
+      }
+
+      else {
+        for (GroupedQueryResult group : (List<GroupedQueryResult>) result.getQueryResults()) {
+          alignAggregators(aggPositions, group.getAggregators(), ctCt);
+        }
+      }
+    }
+
+    private void alignAggregators(Map<Set<String>, Integer> aggIndices, List<Aggregator> target, int countOfCounts) {
+      Aggregator dest[] = new Aggregator[target.size()];
+      for (Aggregator a : target) {
+        AbstractAggregator agg = (AbstractAggregator) a;
+        Set<String> id = new HashSet<String>();
+
+        if (AggregatorOperations.COUNT.equals(agg.getOperation())) {
+
+          for (int i = 0; i < countOfCounts; i++) {
+            id.add(COUNT_AGG_NAME + i);
+            id.add(agg.getOperation().toString());
+            int idx = aggIndices.get(id);
+            id.clear();
+            dest[idx] = agg;
+          }
+          continue;
+        }
+
+        id.add(agg.getAttributeName());
+        id.add(agg.getOperation().toString());
+        int idx = aggIndices.get(id);
+        id.clear();
+        dest[idx] = agg;
+      }
+      target.clear();
+      target.addAll(Arrays.asList(dest));
+
+    }
+
+    private void fillInAggregators(GroupedQueryResult result, Map<String, List<Aggregator>> aggs) {
+      List<Aggregator> dest = result.getAggregators();
+      Collection<Aggregator> countAggs = aggs.get(COUNT_AGG_NAME); // 1 element collection
+      if (countAggs != null) {
+        if (countAggs.isEmpty()) throw new AssertionError("Count aggregator: expected non-empty singleton list");
+        Count count = (Count) countAggs.iterator().next();
+        Count clone = new Count(count.getAttributeName(), count.getType());
+        clone.accept(result);
+        dest.add(clone);
+      }
+
+      for (NVPair attr : result.getAttributes()) {
+        // Hmm, what if there's an actual attribute with the same name
+        if (COUNT_AGG_NAME.equals(attr.getName())) continue;
+        List<Aggregator> attrAggs = aggs.get(attr.getName());
+        if (attrAggs == null) continue;
+
+        for (Aggregator agg : attrAggs) {
+          AbstractAggregator srcAgg = (AbstractAggregator) agg;
+          Aggregator destAgg = AbstractAggregator.aggregator(srcAgg.getOperation(), srcAgg.getAttributeName(),
+                                                             srcAgg.getType());
+
+          // This reverse conversion to String is to prevent ClassCastException in
+          // AbstractNVPair.createNVPair(String, Object, ValueType) when aggregator is serialized back inside reply
+          // msg
+          destAgg.accept(ValueType.ENUM == attr.getType() ? AbstractNVPair.enumStorageString((EnumNVPair) attr) : attr
+              .getObjectValue());
+          dest.add(destAgg);
+        }
+      }
+    }
+
+    private List<GroupedQueryResult> mergeGroups(Collection<List<IndexQueryResult>> stripeResults,
+                                                 List<NVPair> sortAttributes,
+                                                 Map<String, List<Aggregator>> aggregators,
+                                                 Set<String> requestedAttributes) {
+      Map<Set<NVPair>, GroupedQueryResult> uniqueGroups = new HashMap<Set<NVPair>, GroupedQueryResult>();
+
+      for (List<? extends IndexQueryResult> stripeRes : stripeResults) {
+
+        for (GroupedQueryResult group : (List<GroupedQueryResult>) stripeRes) {
+          Set<NVPair> groupBy = group.getGroupedAttributes();
+          fillInAggregators(group, aggregators);
+
+          GroupedQueryResult dest = uniqueGroups.get(groupBy);
+          if (dest == null) {
+            uniqueGroups.put(groupBy, group);
+          } else ResultTools.aggregate(dest.getAggregators(), group.getAggregators());
+        }
+      }
+      List<GroupedQueryResult> groups = new ArrayList<GroupedQueryResult>(uniqueGroups.values());
+
+      // Special case: if the attribute was not originally requested but instead added by us to enable
+      // aggregation, now remove it
+      for (ListIterator<GroupedQueryResult> rowItr = groups.listIterator(); rowItr.hasNext();) {
+        GroupedQueryResult res = rowItr.next();
+        List<NVPair> rowAttrs = new ArrayList<NVPair>(res.getAttributes());
+        for (Iterator<NVPair> itr = rowAttrs.iterator(); itr.hasNext();) {
+          if (!requestedAttributes.contains(itr.next().getName())) {
+            itr.remove();
+
+            rowItr.set(new GroupedIndexQueryResultImpl(rowAttrs, res.getSortAttributes(), res.getGroupedAttributes(),
+                                                       res.getAggregators()));
+          }
+        }
+      }
+
+      if (!sortAttributes.isEmpty()) Collections.sort(groups, new QueryResultComparator(sortAttributes));
+      return groups;
     }
 
     private File getPath() {
@@ -843,7 +994,6 @@ public class LuceneIndexManager {
                                           cfg, loggerFactory); // FIXME
             logger.info(String.format("Opening existing search index [%s/%d]", groupName, idxSegment));
           }
-
           indices.put(idxSegment, luceneIndex);
         }
 

@@ -157,12 +157,12 @@ public class LuceneIndexManagerTest extends TestCase {
     LinkedList queryStack = new LinkedList();
     queryStack.addFirst(AbstractNVPair.createNVPair("attr1", "foo"));
     queryStack.addFirst(StackOperations.TERM);
-    SearchResult context = idxManager.searchIndex("foo", queryStack, true, true, attributeSet, new ArrayList<NVPair>(),
-                                                  new ArrayList<NVPair>(), -1);
+    SearchResult context = idxManager.searchIndex("foo", queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                                  EMPTY, EMPTY, -1);
     boolean hasKey = false;
-    List<IndexQueryResult> res = context.getQueryResults();
+    List<NonGroupedQueryResult> res = context.getQueryResults();
     assertEquals(docCt, res.size());
-    for (IndexQueryResult result : res) {
+    for (NonGroupedQueryResult result : res) {
       if (result.getKey().startsWith("key-")) {
         hasKey = true;
       }
@@ -193,25 +193,26 @@ public class LuceneIndexManagerTest extends TestCase {
     List queryStack = new LinkedList();
     queryStack.add(StackOperations.ALL);
     SearchResult context = idxManager.searchIndex(name, queryStack, true, true, Collections.EMPTY_SET,
-                                                  Collections.EMPTY_LIST, Collections.EMPTY_LIST, -1);
+                                                  Collections.EMPTY_SET, Collections.EMPTY_LIST,
+                                                  Collections.EMPTY_LIST, -1);
     assertEquals(2, context.getQueryResults().size());
 
     // clear an segment that does not exist (should not change anything)
     idxManager.clear(name, 666, new NullProcessingContext());
-    context = idxManager.searchIndex(name, queryStack, true, true, Collections.EMPTY_SET, Collections.EMPTY_LIST,
-                                     Collections.EMPTY_LIST, -1);
+    context = idxManager.searchIndex(name, queryStack, true, true, Collections.EMPTY_SET, Collections.EMPTY_SET,
+                                     Collections.EMPTY_LIST, Collections.EMPTY_LIST, -1);
     assertEquals(2, context.getQueryResults().size());
 
     // clear segment 1
     idxManager.clear(name, 1, new NullProcessingContext());
-    context = idxManager.searchIndex(name, queryStack, true, true, Collections.EMPTY_SET, Collections.EMPTY_LIST,
-                                     Collections.EMPTY_LIST, -1);
+    context = idxManager.searchIndex(name, queryStack, true, true, Collections.EMPTY_SET, Collections.EMPTY_SET,
+                                     Collections.EMPTY_LIST, Collections.EMPTY_LIST, -1);
     assertEquals(1, context.getQueryResults().size());
 
     // clear segment 2
     idxManager.clear(name, 2, new NullProcessingContext());
-    context = idxManager.searchIndex(name, queryStack, true, true, Collections.EMPTY_SET, Collections.EMPTY_LIST,
-                                     Collections.EMPTY_LIST, -1);
+    context = idxManager.searchIndex(name, queryStack, true, true, Collections.EMPTY_SET, Collections.EMPTY_SET,
+                                     Collections.EMPTY_LIST, Collections.EMPTY_LIST, -1);
     assertEquals(0, context.getQueryResults().size());
 
   }
@@ -236,23 +237,23 @@ public class LuceneIndexManagerTest extends TestCase {
     LinkedList queryStack = new LinkedList();
     queryStack.addFirst(AbstractNVPair.createNVPair("attr1", "foo"));
     queryStack.addFirst(StackOperations.TERM);
-    SearchResult context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_LIST,
-                                                  Collections.EMPTY_LIST, -1);
+    SearchResult context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                                  Collections.EMPTY_LIST, Collections.EMPTY_LIST, -1);
     // Removal is no-op
     assertEquals(1, context.getQueryResults().size());
 
     remove.put("key", new ValueID(666));
     idxManager.removeIfValueEqual(name, remove, segmentId, new NullProcessingContext());
 
-    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_LIST,
-                                     Collections.EMPTY_LIST, -1);
+    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                     Collections.EMPTY_LIST, Collections.EMPTY_LIST, -1);
     assertEquals(1, context.getQueryResults().size());
 
     remove.put("key", valueOid);
     idxManager.removeIfValueEqual(name, remove, segmentId, new NullProcessingContext());
 
-    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, new ArrayList<NVPair>(),
-                                     new ArrayList<NVPair>(), -1);
+    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET, EMPTY, EMPTY,
+                                     -1);
     assertEquals(0, context.getQueryResults().size());
 
   }
@@ -276,21 +277,21 @@ public class LuceneIndexManagerTest extends TestCase {
     LinkedList queryStack = new LinkedList();
     queryStack.addFirst(AbstractNVPair.createNVPair("attr1", "foo"));
     queryStack.addFirst(StackOperations.TERM);
-    SearchResult context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_LIST,
-                                                  Collections.EMPTY_LIST, -1);
+    SearchResult context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                                  Collections.EMPTY_LIST, Collections.EMPTY_LIST, -1);
     // Removal is no-op
     assertEquals(1, context.getQueryResults().size());
 
     idxManager.remove(name, "boo", segmentId, new NullProcessingContext());
 
-    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_LIST,
-                                     Collections.EMPTY_LIST, -1);
+    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                     Collections.EMPTY_LIST, Collections.EMPTY_LIST, -1);
     assertEquals(1, context.getQueryResults().size());
 
     idxManager.remove(name, key, segmentId, new NullProcessingContext());
 
-    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, new ArrayList<NVPair>(),
-                                     new ArrayList<NVPair>(), -1);
+    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                     new ArrayList<NVPair>(), new ArrayList<NVPair>(), -1);
     assertEquals(0, context.getQueryResults().size());
 
   }
@@ -329,14 +330,14 @@ public class LuceneIndexManagerTest extends TestCase {
     List<NVPair> sortAttributes = new ArrayList<NVPair>();
     sortAttributes.add(AbstractNVPair.createNVPair("name", SortOperations.DESCENDING));
 
-    SearchResult context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, sortAttributes,
-                                                  Collections.EMPTY_LIST, -1);
+    SearchResult context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                                  sortAttributes, Collections.EMPTY_LIST, -1);
     checkStringSortOrder(context, "p", "name", true);
 
     sortAttributes.clear();
     sortAttributes.add(AbstractNVPair.createNVPair("name", SortOperations.ASCENDING));
-    context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, sortAttributes, Collections.EMPTY_LIST,
-                                     -1);
+    context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
+                                     Collections.EMPTY_LIST, -1);
     checkStringSortOrder(context, "p", "name", false);
 
     // Across multiple segments/indexes
@@ -344,14 +345,14 @@ public class LuceneIndexManagerTest extends TestCase {
     attributes.add(new AbstractNVPair.IntNVPair("age", 36));
     idxManager.insert(idx, "p2", new ValueID(20), attributes, EMPTY, 1985L, new NullProcessingContext());
 
-    context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, sortAttributes, Collections.EMPTY_LIST,
-                                     -1);
+    context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
+                                     Collections.EMPTY_LIST, -1);
     checkStringSortOrder(context, "p", "name", false);
 
     sortAttributes.clear();
     sortAttributes.add(AbstractNVPair.createNVPair("name", SortOperations.DESCENDING));
-    context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, sortAttributes, Collections.EMPTY_LIST,
-                                     -1);
+    context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
+                                     Collections.EMPTY_LIST, -1);
     checkStringSortOrder(context, "p", "name", true);
 
   }
@@ -390,8 +391,8 @@ public class LuceneIndexManagerTest extends TestCase {
     List<NVPair> sortAttributes = new ArrayList<NVPair>();
     sortAttributes.add(AbstractNVPair.createNVPair("age", SortOperations.ASCENDING));
 
-    SearchResult context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, sortAttributes,
-                                                  Collections.EMPTY_LIST, -1);
+    SearchResult context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                                  sortAttributes, Collections.EMPTY_LIST, -1);
 
     checkNumSortOrder(context, "p", "age");
 
@@ -400,8 +401,8 @@ public class LuceneIndexManagerTest extends TestCase {
     attributes.add(new AbstractNVPair.IntNVPair("age", 36));
     idxManager.insert(idx, "p2", new ValueID(20), attributes, EMPTY, 1985L, new NullProcessingContext());
 
-    context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, sortAttributes, Collections.EMPTY_LIST,
-                                     -1);
+    context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
+                                     Collections.EMPTY_LIST, -1);
     checkNumSortOrder(context, "p", "age");
   }
 
@@ -423,22 +424,22 @@ public class LuceneIndexManagerTest extends TestCase {
     List<NVPair> sortAttributes = Collections.EMPTY_LIST;
 
     List<NVPair> aggregatorList = new ArrayList<NVPair>();
-    aggregatorList.add(AbstractNVPair.createNVPair("age", AggregatorOperations.COUNT));
     aggregatorList.add(AbstractNVPair.createNVPair("age", AggregatorOperations.MAX));
     aggregatorList.add(AbstractNVPair.createNVPair("age", AggregatorOperations.MIN));
+    aggregatorList.add(AbstractNVPair.createNVPair("age", AggregatorOperations.COUNT));
     aggregatorList.add(AbstractNVPair.createNVPair("age", AggregatorOperations.SUM));
     aggregatorList.add(AbstractNVPair.createNVPair("age", AggregatorOperations.AVERAGE));
 
-    SearchResult context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, sortAttributes,
-                                                  aggregatorList, -1);
+    SearchResult context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                                  sortAttributes, aggregatorList, -1);
 
     List<Aggregator> results = context.getAggregators();
-    System.out.println("Count : " + results.get(0).getResult());
-    assertEquals(count, results.get(0).getResult());
-    System.out.println("Max : " + results.get(1).getResult());
-    assertEquals(maxVal, results.get(1).getResult());
-    System.out.println("Min : " + results.get(2).getResult());
-    assertEquals(minVal, results.get(2).getResult());
+    System.out.println("Max : " + results.get(0).getResult());
+    assertEquals(maxVal, results.get(0).getResult());
+    System.out.println("Min : " + results.get(1).getResult());
+    assertEquals(minVal, results.get(1).getResult());
+    System.out.println("Count : " + results.get(2).getResult());
+    assertEquals(count, results.get(2).getResult());
     System.out.println("Sum : " + results.get(3).getResult());
     assertEquals(Long.valueOf(count * (minVal + maxVal) / 2), results.get(3).getResult());
     System.out.println("Average : " + results.get(4).getResult());
@@ -474,8 +475,8 @@ public class LuceneIndexManagerTest extends TestCase {
     int limit = 4;
     int min = maxVal - limit + 1;
 
-    SearchResult context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, sortAttributes,
-                                                  aggregatorList, limit);
+    SearchResult context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                                  sortAttributes, aggregatorList, limit);
 
     List<Aggregator> results = context.getAggregators();
     System.out.println("Count : " + results.get(0).getResult());
@@ -513,24 +514,24 @@ public class LuceneIndexManagerTest extends TestCase {
     List<NVPair> aggregatorList = Collections.EMPTY_LIST;
 
     // top 2 results, from sorted list
-    SearchResult context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, sortAttributes,
-                                                  aggregatorList, 2);
+    SearchResult context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                                  sortAttributes, aggregatorList, 2);
 
-    List<IndexQueryResult> res = context.getQueryResults();
+    List<NonGroupedQueryResult> res = context.getQueryResults();
     System.out.println(res);
     assertEquals("key" + (count - 1), res.get(0).getKey());
     assertEquals("key" + (count - 2), res.get(1).getKey());
     assertEquals(2, res.size());
 
     // any 2 results - unsorted list
-    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_LIST,
-                                     aggregatorList, 2);
+    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                     Collections.EMPTY_LIST, aggregatorList, 2);
 
     assertEquals(2, context.getQueryResults().size());
 
     // All results; max > result set
-    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, sortAttributes, aggregatorList,
-                                     count + 1);
+    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
+                                     aggregatorList, count + 1);
 
     assertEquals(count, context.getQueryResults().size());
 
@@ -571,15 +572,15 @@ public class LuceneIndexManagerTest extends TestCase {
     queryStack.addFirst(AbstractNVPair.createNVPair("numeric", 1));
     queryStack.addFirst(StackOperations.TERM);
     SearchResult searchResult = idxManager.searchIndex("foo", queryStack, true, true, Collections.EMPTY_SET,
-                                                       new ArrayList<NVPair>(), new ArrayList<NVPair>(), -1);
+                                                       Collections.EMPTY_SET, EMPTY, EMPTY, -1);
 
-    List<IndexQueryResult> res = searchResult.getQueryResults();
+    List<NonGroupedQueryResult> res = searchResult.getQueryResults();
     assertEquals(1, res.size());
     assertEquals("key", res.get(0).getKey());
 
     idxManager.updateKey("foo", "key", "newKey", 0, new NullProcessingContext());
-    res = idxManager.searchIndex("foo", queryStack, true, true, Collections.EMPTY_SET, new ArrayList<NVPair>(),
-                                 new ArrayList<NVPair>(), -1).getQueryResults();
+    res = idxManager.searchIndex("foo", queryStack, true, true, Collections.EMPTY_SET, Collections.EMPTY_SET, EMPTY,
+                                 EMPTY, -1).getQueryResults();
     assertEquals(1, res.size());
     assertEquals("newKey", res.get(0).getKey());
   }
@@ -651,8 +652,8 @@ public class LuceneIndexManagerTest extends TestCase {
     LinkedList queryStack = new LinkedList();
     queryStack.addFirst(AbstractNVPair.createNVPair("attr1", "foo"));
     queryStack.addFirst(StackOperations.TERM);
-    SearchResult context = idxManager.searchIndex("foo", queryStack, true, true, attributeSet, new ArrayList<NVPair>(),
-                                                  new ArrayList<NVPair>(), -1);
+    SearchResult context = idxManager.searchIndex("foo", queryStack, true, true, attributeSet, Collections.EMPTY_SET,
+                                                  EMPTY, EMPTY, -1);
     return context.getQueryResults();
   }
 
@@ -662,6 +663,59 @@ public class LuceneIndexManagerTest extends TestCase {
       Util.cleanDirectory(dir);
     }
     return dir;
+  }
+
+  public void testGroupBySearch() throws IndexException {
+    String name = getName();
+    List<NVPair> attributes = new ArrayList<NVPair>();
+    String[] names = { "larry", "gary", "mary", "barry", "terry" };
+    String[] states = { "CA", "ID", "MD" };
+    String[] cities = { "Campbell", "Springfield" };
+
+    for (int i = 0; i < names.length * 3; i++) {
+      attributes.add(new AbstractNVPair.StringNVPair("name", names[i % names.length]));
+      attributes.add(new AbstractNVPair.IntNVPair("age", 40 + 3 * i * (i % 2 > 0 ? -1 : 1)));
+      attributes.add(new AbstractNVPair.StringNVPair("state", states[i % states.length]));
+      attributes.add(new AbstractNVPair.StringNVPair("city", cities[i % cities.length]));
+      idxManager
+          .insert(name, "p" + i, new ValueID(i), attributes, EMPTY, i % names.length, new NullProcessingContext());
+      attributes.clear();
+    }
+
+    // test search
+    Set<String> attributeSet = new HashSet<String>();
+    attributeSet.add("state");
+
+    Set<String> groupByAttrs = new HashSet<String>();
+    groupByAttrs.add("state");
+    groupByAttrs.add("city");
+
+    LinkedList queryStack = new LinkedList();
+    queryStack.addFirst(AbstractNVPair.createNVPair("age", 3));
+    queryStack.addFirst(StackOperations.GREATER_THAN);
+
+    List<NVPair> aggregatorList = new ArrayList<NVPair>();
+    aggregatorList.add(AbstractNVPair.createNVPair("age", AggregatorOperations.MIN));
+    aggregatorList.add(AbstractNVPair.createNVPair("age", AggregatorOperations.COUNT));
+
+    List<NVPair> sortAttributes = new ArrayList<NVPair>();
+    sortAttributes.add(AbstractNVPair.createNVPair("state", SortOperations.DESCENDING));
+
+    SearchResult<GroupedQueryResult> context = idxManager.searchIndex(name, queryStack, false, false, attributeSet,
+                                                                      groupByAttrs, sortAttributes, aggregatorList, -1);
+    checkStringSortOrder(context, "state", true);
+    for (GroupedQueryResult res : context.getQueryResults()) {
+      Assert.assertEquals(1, res.getAttributes().size());
+      Assert.assertEquals("state", res.getAttributes().get(0).getName());
+      for (NVPair attr : res.getGroupedAttributes()) {
+        System.out.print(attr.getName() + ": " + attr.getObjectValue() + "  ");
+      }
+
+      for (Aggregator agg : res.getAggregators()) {
+        System.out.print(agg.getResult() + "  ");
+      }
+      System.out.println();
+    }
   }
 
   private File getLuceneDir() throws IOException {
@@ -679,7 +733,8 @@ public class LuceneIndexManagerTest extends TestCase {
    */
   private void checkNumSortOrder(SearchResult res, String keyPrefix, String attrName) {
     int n = 0;
-    for (IndexQueryResult result : res.getQueryResults()) {
+    List<NonGroupedQueryResult> results = res.getQueryResults();
+    for (NonGroupedQueryResult result : results) {
       boolean hasKey = false;
       if (result.getKey().startsWith(keyPrefix)) {
         hasKey = true;
@@ -698,10 +753,28 @@ public class LuceneIndexManagerTest extends TestCase {
 
   }
 
+  private void checkStringSortOrder(SearchResult res, String attrName, boolean desc) {
+    String val = null;
+    List<GroupedQueryResult> results = res.getQueryResults();
+    for (GroupedQueryResult result : results) {
+      for (NVPair pair : result.getAttributes()) {
+        if (attrName.equals(pair.getName())) {
+          StringNVPair strPair = (StringNVPair) pair;
+          String attr = strPair.getValue();
+          System.out.println(attr);
+          if (val != null) assertTrue(attr, attr.compareTo(val) * (desc ? -1 : 1) >= 0);
+          val = attr;
+        }
+      }
+    }
+
+  }
+
   private void checkStringSortOrder(SearchResult res, String keyPrefix, String attrName, boolean desc) {
 
     String val = null;
-    for (IndexQueryResult result : res.getQueryResults()) {
+    List<NonGroupedQueryResult> results = res.getQueryResults();
+    for (NonGroupedQueryResult result : results) {
       boolean hasKey = false;
       if (result.getKey().startsWith(keyPrefix)) {
         hasKey = true;
