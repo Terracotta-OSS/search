@@ -429,6 +429,8 @@ public class LuceneIndexManagerTest extends TestCase {
     aggregatorList.add(AbstractNVPair.createNVPair("age", AggregatorOperations.COUNT));
     aggregatorList.add(AbstractNVPair.createNVPair("age", AggregatorOperations.SUM));
     aggregatorList.add(AbstractNVPair.createNVPair("age", AggregatorOperations.AVERAGE));
+    // Create a second count aggregator, for a good measure
+    aggregatorList.add(AbstractNVPair.createNVPair("age", AggregatorOperations.COUNT));
 
     SearchResult context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
                                                   sortAttributes, aggregatorList, -1);
@@ -444,6 +446,8 @@ public class LuceneIndexManagerTest extends TestCase {
     assertEquals(Long.valueOf(count * (minVal + maxVal) / 2), results.get(3).getResult());
     System.out.println("Average : " + results.get(4).getResult());
     assertEquals(minVal + (maxVal - minVal) / 2f, results.get(4).getResult());
+    System.out.println("Count : " + results.get(5).getResult());
+    assertEquals(count, results.get(5).getResult());
   }
 
   public void testAggregatorsLimitResSet() throws IndexException {

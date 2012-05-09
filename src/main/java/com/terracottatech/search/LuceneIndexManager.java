@@ -859,18 +859,20 @@ public class LuceneIndexManager {
       }
 
       if (!isGroupBy) {
-        alignAggregators(aggPositions, result.getAggregators(), ctCt);
+        alignAggregators(aggPositions, result.getAggregators(), n, ctCt);
       }
 
       else {
         for (GroupedQueryResult group : (List<GroupedQueryResult>) result.getQueryResults()) {
-          alignAggregators(aggPositions, group.getAggregators(), ctCt);
+          alignAggregators(aggPositions, group.getAggregators(), n, ctCt);
         }
       }
     }
 
-    private void alignAggregators(Map<Set<String>, Integer> aggIndices, List<Aggregator> target, int countOfCounts) {
-      Aggregator dest[] = new Aggregator[target.size()];
+    private void alignAggregators(Map<Set<String>, Integer> aggIndices, List<Aggregator> target, int totalAggCount,
+                                  int countOfCounts) {
+      // Do not use target.size() here! Non-grouped search only creates one instance of count aggregator.
+      Aggregator dest[] = new Aggregator[totalAggCount];
       for (Aggregator a : target) {
         AbstractAggregator agg = (AbstractAggregator) a;
         Set<String> id = new HashSet<String>();
