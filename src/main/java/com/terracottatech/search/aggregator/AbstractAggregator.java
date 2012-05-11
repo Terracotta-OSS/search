@@ -84,4 +84,11 @@ public abstract class AbstractAggregator implements Aggregator {
     }
     throw new IllegalArgumentException();
   }
+
+  @Override
+  public String toString() {
+    return new StringBuilder(128).append("<Aggregator, type=").append(operation).append(", value=").append(getResult())
+        .append(", attributeName=").append(attributeName).append(", attributeType=").append(type).append(">")
+        .toString();
+  }
 }

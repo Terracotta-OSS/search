@@ -761,11 +761,16 @@ public class LuceneIndexManager {
         if (isGroupBy) {
           // merge groups and sort (if needed) in one shot
           allQueryResults = mergeGroups(stripeResults, sortAttributes, aggregators, attributeSet);
-        } else allQueryResults = mergeSort(stripeResults, sortAttributes);
+        } else {
+          allQueryResults = mergeSort(stripeResults, sortAttributes);
 
-        if (maxResults >= 0 && allQueryResults.size() > maxResults) {
-          List<IndexQueryResult> trimmed = new ArrayList<IndexQueryResult>(allQueryResults.subList(0, maxResults));
-          allQueryResults = trimmed;
+          // Do not limit results for grouped searches b/c it's the client's job only! Doing the opposite with unordered
+          // searches can erroneously
+          // omit groups from this stripe
+          if (maxResults >= 0 && allQueryResults.size() > maxResults) {
+            List<IndexQueryResult> trimmed = new ArrayList<IndexQueryResult>(allQueryResults.subList(0, maxResults));
+            allQueryResults = trimmed;
+          }
         }
         mergeResult.getQueryResults().addAll(allQueryResults);
       }
