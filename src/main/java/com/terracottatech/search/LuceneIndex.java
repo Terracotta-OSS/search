@@ -271,7 +271,8 @@ public class LuceneIndex {
 
       boolean isGroupBy = !groupByAttributes.isEmpty();
 
-      if (isGroupBy) maxResults = -1; // unbounded if doing a grouped search - to be grouped higher up
+      if (isGroupBy) maxResults = -1; // unbounded if doing a grouped search - to be limited higher
+                                      // up
 
       if (!isGroupBy && sortAttributes.size() > 0) {
         if (maxResults == 0) {
@@ -315,17 +316,13 @@ public class LuceneIndex {
           ValueType type = idxGroup.getSchema().get(attrKey);
 
           Object attrValue = getFieldValue(doc, attrKey, type);
-          if (attrValue != null) {
-            attributes.add(AbstractNVPair.createNVPair(attrKey, attrValue, type));
-          }
+          attributes.add(AbstractNVPair.createNVPair(attrKey, attrValue, type));
         }
 
         for (String attrKey : groupByAttributes) {
           ValueType type = idxGroup.getSchema().get(attrKey);
           Object attrValue = getFieldValue(doc, attrKey, type);
-          if (attrValue != null) {
-            groupByAttrs.add(AbstractNVPair.createNVPair(attrKey, attrValue, type));
-          }
+          groupByAttrs.add(AbstractNVPair.createNVPair(attrKey, attrValue, type));
         }
 
         // Skip adding this as a result unless needed
@@ -335,10 +332,8 @@ public class LuceneIndex {
             String sortAttrKey = pair.getName();
             ValueType type = idxGroup.getSchema().get(sortAttrKey);
             Object attrValue = getFieldValue(doc, sortAttrKey, type);
-            if (attrValue != null) {
-              NVPair attributePair = AbstractNVPair.createNVPair(sortAttrKey, attrValue, type);
-              sortAttributesList.add(attributePair);
-            }
+            NVPair attributePair = AbstractNVPair.createNVPair(sortAttrKey, attrValue, type);
+            sortAttributesList.add(attributePair);
           }
 
           results.add(isGroupBy ? new GroupedIndexQueryResultImpl(attributes, sortAttributesList, groupByAttrs,
