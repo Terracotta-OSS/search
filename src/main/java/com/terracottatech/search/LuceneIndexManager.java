@@ -25,12 +25,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -657,35 +655,6 @@ public class LuceneIndexManager {
       return AbstractAggregator.aggregator(aggregatorType, attributeName, type);
     }
 
-    private List<IndexQueryResult> nextIndexResults(Collection<List<IndexQueryResult>> resultsFromAllIndexes,
-                                                    List<NVPair> sortBy) {
-      final Comparator<IndexQueryResult> comp = new QueryResultComparator(sortBy);
-      return Collections.min(resultsFromAllIndexes, new Comparator<List<IndexQueryResult>>() {
-
-        public int compare(List<IndexQueryResult> o1, List<IndexQueryResult> o2) {
-          IndexQueryResult head1 = o1.isEmpty() ? null : o1.get(0);
-          IndexQueryResult head2 = o2.isEmpty() ? null : o2.get(0);
-          return head1 == null && head2 == null ? 0 : (head1 == null ? 1 : (head2 == null ? -1 : comp.compare(head1,
-                                                                                                              head2)));
-        }
-
-      });
-    }
-
-    private List<IndexQueryResult> mergeSort(Collection<List<IndexQueryResult>> idxResults, List<NVPair> sortBy) {
-      IndexQueryResult lowest = null;
-      List<IndexQueryResult> sorted = new ArrayList<IndexQueryResult>();
-      do {
-        List<IndexQueryResult> next = nextIndexResults(idxResults, sortBy);
-        if (next.isEmpty()) lowest = null;
-        else {
-          lowest = next.remove(0);
-          sorted.add(lowest);
-        }
-      } while (lowest != null);
-      return sorted;
-    }
-
     private SearchResult searchIndex(final List queryStack, final boolean includeKeys, final boolean includeValues,
                                      final Set<String> attributeSet, final Set<String> groupByAttributes,
                                      final List<NVPair> sortAttributes, final List<NVPair> aggPairs,
@@ -720,7 +689,7 @@ public class LuceneIndexManager {
       }
 
       boolean unOrdered = sortAttributes == null || sortAttributes.isEmpty();
-      Collection<List<IndexQueryResult>> stripeResults = new LinkedList<List<IndexQueryResult>>();
+      List<? extends IndexQueryResult> allQueryResults = new ArrayList<IndexQueryResult>();
       try {
         boolean isAny = mergeResult.isAnyCriteriaMatch();
         for (Future<SearchResult> fut : queryThreadPool.invokeAll(searchTasks)) {
@@ -742,7 +711,7 @@ public class LuceneIndexManager {
             mergeResult = new SearchResult(mergeResult.getQueryResults(), mergeResult.getAggregators(), isAny);
           }
           // grab everything - we will sort and/or trim results below
-          else stripeResults.add(curRes.getQueryResults());
+          else allQueryResults.addAll(curRes.getQueryResults());
         }
 
       } catch (Throwable t) {
@@ -755,14 +724,18 @@ public class LuceneIndexManager {
         throw new IndexException(t);
       }
 
-      List<? extends IndexQueryResult> allQueryResults;
       if (!unOrdered || isGroupBy) {
 
         if (isGroupBy) {
           // merge groups and sort (if needed) in one shot
-          allQueryResults = mergeGroups(stripeResults, sortAttributes, aggregators, attributeSet);
+          allQueryResults = mergeGroups(allQueryResults, sortAttributes, aggregators, attributeSet);
+          mergeResult = new SearchResult(mergeResult.getQueryResults(), mergeResult.getAggregators(),
+                                         !allQueryResults.isEmpty());
         } else {
-          allQueryResults = mergeSort(stripeResults, sortAttributes);
+          // XXX Can't use merge sort - for now. Lucene's internal sort treats missing numeric fields as zeros, and
+          // strings are moved to the end.
+          // allQueryResults = mergeSort(stripeResults, sortAttributes);
+          Collections.sort(allQueryResults, new QueryResultComparator(sortAttributes));
 
           // Do not limit results for grouped searches b/c it's the client's job only! Doing the opposite with unordered
           // searches can erroneously
@@ -774,7 +747,6 @@ public class LuceneIndexManager {
         }
         mergeResult.getQueryResults().addAll(allQueryResults);
       }
-      allQueryResults = mergeResult.getQueryResults();
 
       if (!isGroupBy) {
         allQueryResults = mergeResult.getQueryResults();
@@ -937,23 +909,22 @@ public class LuceneIndexManager {
       }
     }
 
-    private List<GroupedQueryResult> mergeGroups(Collection<List<IndexQueryResult>> stripeResults,
+    private List<GroupedQueryResult> mergeGroups(List<? extends IndexQueryResult> stripeResults,
                                                  List<NVPair> sortAttributes,
                                                  Map<String, List<Aggregator>> aggregators,
                                                  Set<String> requestedAttributes) {
       Map<Set<NVPair>, GroupedQueryResult> uniqueGroups = new HashMap<Set<NVPair>, GroupedQueryResult>();
 
-      for (List<? extends IndexQueryResult> stripeRes : stripeResults) {
+      for (IndexQueryResult stripeRes : stripeResults) {
 
-        for (GroupedQueryResult group : (List<GroupedQueryResult>) stripeRes) {
-          Set<NVPair> groupBy = group.getGroupedAttributes();
-          fillInAggregators(group, aggregators);
+        GroupedQueryResult group = (GroupedQueryResult) stripeRes;
+        Set<NVPair> groupBy = group.getGroupedAttributes();
+        fillInAggregators(group, aggregators);
 
-          GroupedQueryResult dest = uniqueGroups.get(groupBy);
-          if (dest == null) {
-            uniqueGroups.put(groupBy, group);
-          } else ResultTools.aggregate(dest.getAggregators(), group.getAggregators());
-        }
+        GroupedQueryResult dest = uniqueGroups.get(groupBy);
+        if (dest == null) {
+          uniqueGroups.put(groupBy, group);
+        } else ResultTools.aggregate(dest.getAggregators(), group.getAggregators());
       }
       List<GroupedQueryResult> groups = new ArrayList<GroupedQueryResult>(uniqueGroups.values());
 

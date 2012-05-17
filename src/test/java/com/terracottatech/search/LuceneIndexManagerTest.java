@@ -299,7 +299,7 @@ public class LuceneIndexManagerTest extends TestCase {
   public void testStringSort() throws IndexException {
     String idx = getName();
     List<NVPair> attributes = new ArrayList<NVPair>();
-    String[] names = { "larry", "gary", "mary" };
+    String[] names = { "larry", "gary", "mary", "barry" };
 
     // Same segment
     long segmentId = 1984L;
@@ -314,9 +314,19 @@ public class LuceneIndexManagerTest extends TestCase {
     idxManager.insert(idx, "p1", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
     attributes.clear();
 
-    attributes.add(new AbstractNVPair.StringNVPair("name", names[2]));
-    attributes.add(new AbstractNVPair.IntNVPair("age", 27));
+    // Missing value for sort field
+    attributes.add(new AbstractNVPair.IntNVPair("age", 19));
     idxManager.insert(idx, "p2", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
+    attributes.clear();
+
+    attributes.add(new AbstractNVPair.StringNVPair("name", names[3]));
+    attributes.add(new AbstractNVPair.IntNVPair("age", 27));
+    idxManager.insert(idx, "p3", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
+    attributes.clear();
+
+    // Missing value for sort field
+    attributes.add(new AbstractNVPair.IntNVPair("age", 62));
+    idxManager.insert(idx, "p4", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
     attributes.clear();
 
     // test search
@@ -345,6 +355,12 @@ public class LuceneIndexManagerTest extends TestCase {
     attributes.add(new AbstractNVPair.IntNVPair("age", 36));
     idxManager.insert(idx, "p2", new ValueID(20), attributes, EMPTY, 1985L, new NullProcessingContext());
 
+    // Missing value for sort field
+    attributes.clear();
+    attributes.add(new AbstractNVPair.IntNVPair("age", 32));
+    idxManager.insert(idx, "p1", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
+    attributes.clear();
+
     context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
                                      Collections.EMPTY_LIST, -1);
     checkStringSortOrder(context, "p", "name", false);
@@ -360,7 +376,7 @@ public class LuceneIndexManagerTest extends TestCase {
   public void testNumericSort() throws IndexException {
     String idx = getName();
     List<NVPair> attributes = new ArrayList<NVPair>();
-    String[] names = { "larry", "gary", "mary" };
+    String[] names = { "larry", "gary", "mary", "jerry" };
 
     // Same segment
     long segmentId = 1984L;
@@ -375,9 +391,19 @@ public class LuceneIndexManagerTest extends TestCase {
     idxManager.insert(idx, "p1", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
     attributes.clear();
 
+    attributes.add(new AbstractNVPair.StringNVPair("name", names[3]));
+    // Missing value to sort by
+    idxManager.insert(idx, "p3", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
+    attributes.clear();
+
     attributes.add(new AbstractNVPair.StringNVPair("name", names[2]));
     attributes.add(new AbstractNVPair.IntNVPair("age", 27));
     idxManager.insert(idx, "p2", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
+    attributes.clear();
+
+    attributes.add(new AbstractNVPair.StringNVPair("name", names[0]));
+    // Missing value to sort by
+    idxManager.insert(idx, "p4", new ValueID(20), attributes, EMPTY, segmentId, new NullProcessingContext());
     attributes.clear();
 
     // test search
@@ -401,6 +427,12 @@ public class LuceneIndexManagerTest extends TestCase {
     attributes.add(new AbstractNVPair.IntNVPair("age", 36));
     idxManager.insert(idx, "p2", new ValueID(20), attributes, EMPTY, 1985L, new NullProcessingContext());
 
+    attributes.clear();
+
+    attributes.add(new AbstractNVPair.StringNVPair("name", names[1]));
+    // Missing value to sort by
+    idxManager.insert(idx, "p3", new ValueID(20), attributes, EMPTY, 1985, new NullProcessingContext());
+
     context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
                                      Collections.EMPTY_LIST, -1);
     checkNumSortOrder(context, "p", "age");
@@ -411,9 +443,11 @@ public class LuceneIndexManagerTest extends TestCase {
     int minVal = 100;
     int count = idxCt * 3;
     int maxVal = minVal + count - 1;
+
     for (int i = 0; i < count; i++) {
       List<NVPair> attributes = new ArrayList<NVPair>();
       attributes.add(new AbstractNVPair.IntNVPair("age", minVal + i));
+      if (i % 2 == 0) attributes.add(AbstractNVPair.createNVPair("name", "Sir" + Character.valueOf((char) ('A' + i))));
       idxManager.insert(name, "key" + i, new ValueID(i * 4), attributes, EMPTY, i, new NullProcessingContext());
     }
 
@@ -448,6 +482,23 @@ public class LuceneIndexManagerTest extends TestCase {
     assertEquals(minVal + (maxVal - minVal) / 2f, results.get(4).getResult());
     System.out.println("Count : " + results.get(5).getResult());
     assertEquals(count, results.get(5).getResult());
+
+    // Expect to get something back in an aggregator anyway, even when aggregating on non-existent field
+    aggregatorList.add(AbstractNVPair.createNVPair("name", AggregatorOperations.MAX));
+    queryStack.clear();
+    queryStack.add(StackOperations.BEGIN_GROUP);
+    queryStack.add(StackOperations.OR);
+    for (int i = 1; i < count; i += 2) {
+      queryStack.add(StackOperations.TERM);
+      queryStack.add(new AbstractNVPair.IntNVPair("age", minVal + i));
+    }
+    queryStack.add(StackOperations.END_GROUP);
+
+    context = idxManager.searchIndex(name, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
+                                     aggregatorList, -1);
+    results = context.getAggregators();
+    assertEquals(7, results.size());
+    assertNull(results.get(6).getResult());
   }
 
   public void testAggregatorsLimitResSet() throws IndexException {
@@ -736,20 +787,26 @@ public class LuceneIndexManagerTest extends TestCase {
    * Verify ascending numeric sort order
    */
   private void checkNumSortOrder(SearchResult res, String keyPrefix, String attrName) {
-    int n = 0;
+    Integer n = Integer.MIN_VALUE;
     List<NonGroupedQueryResult> results = res.getQueryResults();
     for (NonGroupedQueryResult result : results) {
       boolean hasKey = false;
       if (result.getKey().startsWith(keyPrefix)) {
         hasKey = true;
       }
-      for (NVPair pair : result.getAttributes()) {
+      for (NVPair pair : result.getSortAttributes()) {
         if (attrName.equals(pair.getName())) {
-          IntNVPair intPair = (IntNVPair) pair;
-          int num = intPair.getValue();
-          System.out.println(num);
-          assertTrue(String.valueOf(num), num >= n);
-          n = num;
+          Object value = pair.getObjectValue();
+          if (value == null) {
+            assertEquals(Integer.MIN_VALUE, (int) n);
+            System.out.println(n);
+          } else {
+            IntNVPair intPair = (IntNVPair) pair;
+            int num = intPair.getValue();
+            System.out.println(num);
+            assertTrue(String.valueOf(num), num >= n);
+            n = num;
+          }
         }
       }
       assertTrue(hasKey);
@@ -761,15 +818,7 @@ public class LuceneIndexManagerTest extends TestCase {
     String val = null;
     List<GroupedQueryResult> results = res.getQueryResults();
     for (GroupedQueryResult result : results) {
-      for (NVPair pair : result.getAttributes()) {
-        if (attrName.equals(pair.getName())) {
-          StringNVPair strPair = (StringNVPair) pair;
-          String attr = strPair.getValue();
-          System.out.println(attr);
-          if (val != null) assertTrue(attr, attr.compareTo(val) * (desc ? -1 : 1) >= 0);
-          val = attr;
-        }
-      }
+      val = verifyOrder(val, result, attrName, desc);
     }
 
   }
@@ -783,18 +832,28 @@ public class LuceneIndexManagerTest extends TestCase {
       if (result.getKey().startsWith(keyPrefix)) {
         hasKey = true;
       }
-      for (NVPair pair : result.getAttributes()) {
-        if (attrName.equals(pair.getName())) {
-          StringNVPair strPair = (StringNVPair) pair;
-          String attr = strPair.getValue();
-          System.out.println(attr);
-          if (val != null) assertTrue(attr, attr.compareTo(val) * (desc ? -1 : 1) >= 0);
-          val = attr;
-        }
-      }
+      val = verifyOrder(val, result, attrName, desc);
       assertTrue(hasKey);
     }
 
   }
 
+  private String verifyOrder(String prev, IndexQueryResult res, String attrName, boolean desc) {
+    for (NVPair pair : res.getAttributes()) {
+      if (attrName.equals(pair.getName())) {
+        Object value = pair.getObjectValue();
+        if (value == null) {
+          assertNull(prev);
+        } else {
+          StringNVPair strPair = (StringNVPair) pair;
+          String attr = strPair.getValue();
+          System.out.println(attr);
+          if (prev != null) assertTrue(attr, attr.compareTo(prev) * (desc ? -1 : 1) >= 0);
+          prev = attr;
+        }
+      }
+    }
+    return prev;
+
+  }
 }

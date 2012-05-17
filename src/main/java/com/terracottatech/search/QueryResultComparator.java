@@ -29,13 +29,15 @@ public class QueryResultComparator implements Comparator<IndexQueryResult> {
           for (NVPair sortField1 : o1) {
             if (sortField1.getName().equals(attributeName)) {
               NVPair sortField2 = o2.get(n);
-              if (!(sortField1.getName().equals(sortField2.getName()) && sortField1.getType() == sortField2.getType())) throw new IllegalArgumentException(
-                                                                                                                                                           String
-                                                                                                                                                               .format("Query results contain incompatible sort fields: %s, %s",
-                                                                                                                                                                       sortField1,
-                                                                                                                                                                       sortField2));
-              Comparable v1 = (Comparable) sortField1.getObjectValue();
-              return v1.compareTo(sortField2.getObjectValue()) * (isDesc ? -1 : 1);
+              // NOTE: not validating types due to NullNVPair having its own type, and we must be able to handle nulls
+              // in sort fields
+              if (!sortField1.getName().equals(sortField2.getName())) throw new IllegalArgumentException(String
+                  .format("Query results contain incompatible sort fields: %s, %s", sortField1, sortField2));
+
+              // Move nulls to the front, regardless of desired search order
+              int comp = ValueType.NULL == sortField1.getType() || ValueType.NULL == sortField2.getType() ? 1
+                  : (isDesc ? -1 : 1);
+              return sortField1.compareTo(sortField2) * comp;
             }
             n++;
           }

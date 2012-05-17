@@ -39,6 +39,14 @@ public abstract class AbstractNVPair implements NVPair {
     return false;
   }
 
+  @Override
+  public int compareTo(NVPair other) {
+    boolean thisNull = getObjectValue() == null, otherNull = other.getObjectValue() == null;
+    if (!(thisNull || otherNull)) return ((Comparable) getObjectValue()).compareTo(other.getObjectValue());
+
+    return otherNull ? (thisNull ? 0 : 1) : -1;
+  }
+
   abstract boolean basicEquals(NVPair other);
 
   @Override
