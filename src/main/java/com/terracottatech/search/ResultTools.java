@@ -47,14 +47,13 @@ public final class ResultTools {
     }
   }
 
-  public static <T extends IndexQueryResult> List<T> nextIndexResults(Collection<List<T>> resultsFromAllIndexes,
-                                                                      List<NVPair> sortBy) {
-    final Comparator<IndexQueryResult> comp = new QueryResultComparator(sortBy);
+  private static <T extends IndexQueryResult> List<T> nextIndexResults(Collection<List<T>> resultsFromAllIndexes,
+                                                                       final Comparator<IndexQueryResult> comp) {
     return Collections.min(resultsFromAllIndexes, new Comparator<List<T>>() {
 
       public int compare(List<T> o1, List<T> o2) {
-        IndexQueryResult head1 = o1.isEmpty() ? null : o1.get(0);
-        IndexQueryResult head2 = o2.isEmpty() ? null : o2.get(0);
+        T head1 = o1.isEmpty() ? null : o1.get(0);
+        T head2 = o2.isEmpty() ? null : o2.get(0);
         return head1 == null && head2 == null ? 0 : (head1 == null ? 1 : (head2 == null ? -1 : comp.compare(head1,
                                                                                                             head2)));
       }
@@ -65,8 +64,9 @@ public final class ResultTools {
   public static <T extends IndexQueryResult> List<T> mergeSort(Collection<List<T>> idxResults, List<NVPair> sortBy) {
     T lowest = null;
     List<T> sorted = new ArrayList<T>();
+    QueryResultComparator resComp = new QueryResultComparator(sortBy);
     do {
-      List<T> next = nextIndexResults(idxResults, sortBy);
+      List<T> next = nextIndexResults(idxResults, resComp);
       if (next.isEmpty()) lowest = null;
       else {
         lowest = next.remove(0);
