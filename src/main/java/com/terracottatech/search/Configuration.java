@@ -21,6 +21,8 @@ public class Configuration {
   private final boolean     useRamDir;
   private final boolean     useCommitThread;
 
+  private boolean           doAccessChecks          = true;
+
   public Configuration(int indexesPerCache, int maxConcurrentQueries, boolean useOffHeap, boolean useRamDir,
                        boolean useCommitThread) {
     this.indexesPerCache = indexesPerCache;
@@ -80,6 +82,14 @@ public class Configuration {
 
   public void setMaxMergeDocs(int maxMergeDocs) {
     this.maxMergeDocs = maxMergeDocs;
+  }
+
+  public boolean doAccessChecks() {
+    return this.doAccessChecks;
+  }
+
+  public void setDoAccessChecks(boolean doChecks) {
+    this.doAccessChecks = doChecks;
   }
 
 }

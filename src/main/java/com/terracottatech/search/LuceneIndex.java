@@ -110,8 +110,12 @@ public class LuceneIndex {
                                                                                                      // when upgrading
                                                                                                      // to Lucene 3.5+
 
+  private final boolean                    doAccessCheck;
+
   LuceneIndex(Directory directory, String name, File path, boolean useCommitThread, IndexGroup parent,
               Configuration cfg, LoggerFactory loggerFactory) throws IndexException {
+    this.doAccessCheck = cfg.doAccessChecks();
+
     this.logger = loggerFactory.getLogger(getClass().getName() + "-" + path.getName());
     this.snapshotter = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
     this.path = path;
@@ -409,8 +413,7 @@ public class LuceneIndex {
   }
 
   void remove(String key, ProcessingContext context) throws IndexException {
-    if (!accessor.compareAndSet(null, Thread.currentThread()) && accessor.get() != Thread.currentThread()) { throw new AssertionError(
-                                                                                                                                      "Index is being accessed by a different thread"); }
+    checkAccessor();
 
     try {
       writer.deleteDocuments(new Term(KEY_FIELD_NAME, key));
@@ -453,8 +456,7 @@ public class LuceneIndex {
 
   private void removeIfValueEqual(String key, ValueID value, IndexReader reader, IndexSearcher searcher)
       throws IOException {
-    if (!accessor.compareAndSet(null, Thread.currentThread()) && accessor.get() != Thread.currentThread()) { throw new AssertionError(
-                                                                                                                                      "Index is being accessed by a different thread"); }
+    checkAccessor();
 
     BooleanQuery query = new BooleanQuery();
     query.add(new BooleanClause(new TermQuery(new Term(KEY_FIELD_NAME, key)), Occur.MUST));
@@ -639,10 +641,7 @@ public class LuceneIndex {
 
   private void upsertInternal(String key, ValueID value, List<NVPair> attributes, List<NVPair> storeOnlyAttributes,
                               long segmentOid, boolean isInsert) throws IndexException {
-    if (!accessor.compareAndSet(null, Thread.currentThread()) && accessor.get() != Thread.currentThread()) {
-      //
-      throw new AssertionError("Index is being accessed by a different thread");
-    }
+    checkAccessor();
 
     idxGroup.checkSchema(attributes);
     idxGroup.checkSchema(storeOnlyAttributes);
@@ -668,6 +667,19 @@ public class LuceneIndex {
 
     } catch (Exception e) {
       throw new IndexException(e);
+    }
+  }
+
+  private void checkAccessor() {
+    if (doAccessCheck) {
+      Thread current = Thread.currentThread();
+      if (!accessor.compareAndSet(null, current)) {
+        Thread orig = accessor.get();
+        if (orig != current) {
+          //
+          throw new AssertionError("Index is being accessed by a different thread. Original=[" + orig.getName() + "]");
+        }
+      }
     }
   }
 
