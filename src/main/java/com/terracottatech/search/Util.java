@@ -9,21 +9,40 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.regex.Pattern;
+import java.util.HashSet;
+import java.util.Set;
 
 public class Util {
 
-  private static final Pattern LEGAL_CHARS = Pattern.compile("^[ \\w]$");
+  private static final int            DEL      = 0x7F;
+  private static final char           ESCAPE   = '%';
+  private static final Set<Character> ILLEGALS = new HashSet<Character>();
+
+  static {
+    ILLEGALS.add('/');
+    ILLEGALS.add('\\');
+    ILLEGALS.add('<');
+    ILLEGALS.add('>');
+    ILLEGALS.add(':');
+    ILLEGALS.add('"');
+    ILLEGALS.add('|');
+    ILLEGALS.add('?');
+    ILLEGALS.add('*');
+    ILLEGALS.add('.');
+  }
 
   /**
-   * Remove any characters from a cache name that might not be legal for use in a directory/file name
-   * NOTE: This may have the side effect of making the name no longer unique
+   * Convert the given string into a unique and legal path for all file systems
    */
   public static String sanitizeCacheName(String name) {
-    StringBuilder sb = new StringBuilder();
-    for (int i = 0, n = name.length(); i < n; i++) {
+    int len = name.length();
+    StringBuilder sb = new StringBuilder(len);
+    for (int i = 0; i < len; i++) {
       char c = name.charAt(i);
-      if (LEGAL_CHARS.matcher(String.valueOf(c)).matches()) {
+      if (c <= ' ' || c >= DEL || (c >= 'A' && c <= 'Z') || ILLEGALS.contains(c) || c == ESCAPE) {
+        sb.append(ESCAPE);
+        sb.append(String.format("%04x", (int) c));
+      } else {
         sb.append(c);
       }
     }
