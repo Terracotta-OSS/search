@@ -278,7 +278,7 @@ public class LuceneIndex {
       if (isGroupBy) maxResults = -1; // unbounded if doing a grouped search - to be limited higher
                                       // up
 
-      if (!isGroupBy && sortAttributes.size() > 0) {
+      if (maxResults >= 0 && sortAttributes.size() > 0) {
         if (maxResults == 0) {
           docIds = new EmptyDocIdList();
         } else {
@@ -862,7 +862,8 @@ public class LuceneIndex {
     for (NVPair sortAttributePair : sortAttributes) {
       String attributeName = sortAttributePair.getName();
       Boolean descending = SortOperations.DESCENDING.equals(sortAttributePair.getObjectValue()) ? true : false;
-      sortFields.add(new SortField(attributeName, getSortFieldType(attributeName), descending));
+      Integer sortFieldType = getSortFieldType(attributeName);
+      if (sortFieldType != null) sortFields.add(new SortField(attributeName, sortFieldType, descending));
     }
     Sort sort = new Sort(sortFields.toArray(new SortField[sortFields.size()]));
     return sort;
@@ -912,9 +913,9 @@ public class LuceneIndex {
     }
   }
 
-  private int getSortFieldType(String attributeName) throws IndexException {
+  private Integer getSortFieldType(String attributeName) throws IndexException {
     ValueType valueType = idxGroup.getSchema().get(attributeName);
-    if (valueType == null) { throw new IndexException("no such attribute named [" + attributeName + "]"); }
+    if (valueType == null) return null;
 
     switch (valueType) {
       case BOOLEAN:

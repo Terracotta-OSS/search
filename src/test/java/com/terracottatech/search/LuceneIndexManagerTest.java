@@ -342,13 +342,13 @@ public class LuceneIndexManagerTest extends TestCase {
 
     SearchResult context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET,
                                                   sortAttributes, Collections.EMPTY_LIST, -1);
-    checkStringSortOrder(context, "p", "name", true);
+    SortUtil.checkStringSortOrder(context, "p", "name", true);
 
     sortAttributes.clear();
     sortAttributes.add(AbstractNVPair.createNVPair("name", SortOperations.ASCENDING));
     context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
                                      Collections.EMPTY_LIST, -1);
-    checkStringSortOrder(context, "p", "name", false);
+    SortUtil.checkStringSortOrder(context, "p", "name", false);
 
     // Across multiple segments/indexes
     attributes.add(new AbstractNVPair.StringNVPair("name", "jerry"));
@@ -363,13 +363,13 @@ public class LuceneIndexManagerTest extends TestCase {
 
     context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
                                      Collections.EMPTY_LIST, -1);
-    checkStringSortOrder(context, "p", "name", false);
+    SortUtil.checkStringSortOrder(context, "p", "name", false);
 
     sortAttributes.clear();
     sortAttributes.add(AbstractNVPair.createNVPair("name", SortOperations.DESCENDING));
     context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
                                      Collections.EMPTY_LIST, -1);
-    checkStringSortOrder(context, "p", "name", true);
+    SortUtil.checkStringSortOrder(context, "p", "name", true);
 
   }
 
@@ -436,6 +436,42 @@ public class LuceneIndexManagerTest extends TestCase {
     context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
                                      Collections.EMPTY_LIST, -1);
     checkNumSortOrder(context, "p", "age");
+
+    // Add missing field to sort order
+    sortAttributes.add(AbstractNVPair.createNVPair("address", SortOperations.ASCENDING));
+    context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet, Collections.EMPTY_SET, sortAttributes,
+                                     Collections.EMPTY_LIST, -1);
+    // This should just work the same as if the extra sort field was never specified
+    checkNumSortOrder(context, "p", "age");
+  }
+
+  public void testUnknownFieldSort() throws IndexException {
+    String idx = getName();
+    List<NVPair> attributes = new ArrayList<NVPair>();
+
+    // Same segment
+    long segmentId = 1984L;
+
+    attributes.add(new AbstractNVPair.StringNVPair("name", "foo"));
+    attributes.add(new AbstractNVPair.IntNVPair("age", 54));
+    idxManager.insert(idx, "p0", new ValueID(100), attributes, EMPTY, segmentId, new NullProcessingContext());
+
+    LinkedList queryStack = new LinkedList();
+    queryStack.addFirst(StackOperations.ALL);
+
+    List<NVPair> sortAttributes = new ArrayList<NVPair>();
+
+    Set<String> attributeSet = new HashSet<String>();
+    attributeSet.add("name");
+    attributeSet.add("age");
+    sortAttributes.add(AbstractNVPair.createNVPair("address", SortOperations.ASCENDING));
+    SearchResult<IndexQueryResult> context = idxManager.searchIndex(idx, queryStack, true, true, attributeSet,
+                                                                    Collections.EMPTY_SET, sortAttributes,
+                                                                    Collections.EMPTY_LIST, -1);
+
+    IndexQueryResult res = context.getQueryResults().get(0);
+    assertEquals(1, res.getSortAttributes().size());
+    assertNull(res.getSortAttributes().get(0).getObjectValue());
   }
 
   public void testBuiltInFuctionBasic() throws IndexException {
@@ -758,7 +794,7 @@ public class LuceneIndexManagerTest extends TestCase {
 
     SearchResult<GroupedQueryResult> context = idxManager.searchIndex(name, queryStack, false, false, attributeSet,
                                                                       groupByAttrs, sortAttributes, aggregatorList, -1);
-    checkStringSortOrder(context, "state", true);
+    SortUtil.checkStringSortOrder(context, "state", true);
     for (GroupedQueryResult res : context.getQueryResults()) {
       Assert.assertEquals(1, res.getAttributes().size());
       Assert.assertEquals("state", res.getAttributes().get(0).getName());
@@ -814,46 +850,4 @@ public class LuceneIndexManagerTest extends TestCase {
 
   }
 
-  private void checkStringSortOrder(SearchResult res, String attrName, boolean desc) {
-    String val = null;
-    List<GroupedQueryResult> results = res.getQueryResults();
-    for (GroupedQueryResult result : results) {
-      val = verifyOrder(val, result, attrName, desc);
-    }
-
-  }
-
-  private void checkStringSortOrder(SearchResult res, String keyPrefix, String attrName, boolean desc) {
-
-    String val = null;
-    List<NonGroupedQueryResult> results = res.getQueryResults();
-    for (NonGroupedQueryResult result : results) {
-      boolean hasKey = false;
-      if (result.getKey().startsWith(keyPrefix)) {
-        hasKey = true;
-      }
-      val = verifyOrder(val, result, attrName, desc);
-      assertTrue(hasKey);
-    }
-
-  }
-
-  private String verifyOrder(String prev, IndexQueryResult res, String attrName, boolean desc) {
-    for (NVPair pair : res.getAttributes()) {
-      if (attrName.equals(pair.getName())) {
-        Object value = pair.getObjectValue();
-        if (value == null) {
-          assertNull(prev);
-        } else {
-          StringNVPair strPair = (StringNVPair) pair;
-          String attr = strPair.getValue();
-          System.out.println(attr);
-          if (prev != null) assertTrue(attr, attr.compareTo(prev) * (desc ? -1 : 1) >= 0);
-          prev = attr;
-        }
-      }
-    }
-    return prev;
-
-  }
 }
