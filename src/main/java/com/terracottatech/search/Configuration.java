@@ -20,16 +20,23 @@ public class Configuration {
   private final boolean     useOffHeap;
   private final boolean     useRamDir;
   private final boolean     useCommitThread;
+  private final int         offHeapFileSegmentCount;
+  private final int         offHeapFileBlockSize;
+  private final int         offHeapFileMaxPageSize;
 
   private boolean           doAccessChecks          = true;
 
   public Configuration(int indexesPerCache, int maxConcurrentQueries, boolean useOffHeap, boolean useRamDir,
-                       boolean useCommitThread) {
+                       boolean useCommitThread, int offHeapFileSegmentCount, int offHeapFileBlockSize,
+                       int offHeapFileMaxPageSize) {
     this.indexesPerCache = indexesPerCache;
     this.maxConcurrentQueries = maxConcurrentQueries;
     this.useOffHeap = useOffHeap;
     this.useRamDir = useRamDir;
     this.useCommitThread = useCommitThread;
+    this.offHeapFileSegmentCount = offHeapFileSegmentCount;
+    this.offHeapFileBlockSize = offHeapFileBlockSize;
+    this.offHeapFileMaxPageSize = offHeapFileMaxPageSize;
   }
 
   public boolean useRamDir() {
@@ -50,6 +57,18 @@ public class Configuration {
 
   public boolean useCommitThread() {
     return useCommitThread;
+  }
+
+  public int getOffHeapFileSegmentCount() {
+    return offHeapFileSegmentCount;
+  }
+
+  public int getOffHeapFileBlockSize() {
+    return offHeapFileBlockSize;
+  }
+
+  public int getOffHeapFileMaxPageSize() {
+    return offHeapFileMaxPageSize;
   }
 
   public float getMaxRamBufferSize() {

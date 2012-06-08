@@ -36,7 +36,7 @@ public class LuceneIndexManagerTest extends TestCase {
 
   private LuceneIndexManager        idxManager;
 
-  private final Configuration       cfg           = new Configuration(idxCt, 10, false, false, true);
+  private final Configuration       cfg           = new Configuration(idxCt, 10, false, false, true, 0, 0, 0);
   private final LoggerFactory       loggerFactory = new SysOutLoggerFactory();
 
   @Override

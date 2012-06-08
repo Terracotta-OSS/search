@@ -9,10 +9,14 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Constants;
 
+import com.terracottatech.offheapstore.filesystem.FileSystem;
+import com.terracottatech.offheapstore.filesystem.impl.OffheapFileSystem;
+import com.terracottatech.offheapstore.paging.PageSource;
 import com.terracottatech.search.AbstractNVPair.EnumNVPair;
 import com.terracottatech.search.aggregator.AbstractAggregator;
 import com.terracottatech.search.aggregator.Aggregator;
 import com.terracottatech.search.aggregator.Count;
+import com.terracottatech.search.store.OffHeapDirectory;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -33,6 +37,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -61,7 +66,10 @@ public class LuceneIndexManager {
   private final LoggerFactory                         loggerFactory;
   private final Configuration                         cfg;
   private final int                                   perCacheIdxCt;
-
+  private final int                                   offHeapFileSegmentCount;
+  private final int                                   offHeapFileBlockSize;
+  private final int                                   offHeapFileMaxPageSize;
+  private FileSystem                                  offHeapFileSystem;
   private final ExecutorService                       queryThreadPool;
 
   static final String                                 TERRACOTTA_CACHE_NAME_FILE = "__terracotta_cache_name.txt";
@@ -75,6 +83,9 @@ public class LuceneIndexManager {
     this.cfg = cfg;
     this.logger = loggerFactory.getLogger(LuceneIndexManager.class);
     this.perCacheIdxCt = cfg.indexesPerCache();
+    this.offHeapFileSegmentCount = cfg.getOffHeapFileSegmentCount();
+    this.offHeapFileBlockSize = cfg.getOffHeapFileBlockSize();
+    this.offHeapFileMaxPageSize = cfg.getOffHeapFileMaxPageSize();
 
     logger.info("Lucene version: " + Constants.LUCENE_MAIN_VERSION);
 
@@ -85,7 +96,7 @@ public class LuceneIndexManager {
     boolean useRamdir = cfg.useRamDir();
     boolean useOffHeapdir = cfg.useOffHeap();
     if (useRamdir && useOffHeapdir) { throw new AssertionError(
-                                                               "Can have both Ram Directory and OffHeap Directory enabled !"); }
+                                                               "Can't have both Ram Directory and OffHeap Directory enabled !"); }
 
     if (isPermStore && (useRamdir || useOffHeapdir)) logger
         .warn("Server persistence is configured for permanent store mode - ignoring ram directory setting.");
@@ -94,13 +105,16 @@ public class LuceneIndexManager {
     offHeapdir = !isPermStore && useOffHeapdir;
     if (ramdir) {
       logger.warn("Using on-heap ram directory for search indices. Heap usage is unbounded");
-    } else if (offHeapdir) {
-      // if (offHeapStorageManager == null) { throw new AssertionError(
-      // "OffHeap is not configured in tc-config.xml but offheap is enabled for search indexes. Please enabled offheap in Terracotta config.");
-      // }
-      logger.info("Using off-heap directory for search indices ");
     }
     useCommitThread = cfg.useCommitThread();
+  }
+
+  public LuceneIndexManager(File indexDir, boolean isPermStore, LoggerFactory loggerFactory, Configuration cfg,
+                            PageSource pageSource) {
+    this(indexDir, isPermStore, loggerFactory, cfg);
+    logger.info("Using off-heap directory for search indices ");
+    this.offHeapFileSystem = new OffheapFileSystem(pageSource, offHeapFileBlockSize, offHeapFileMaxPageSize,
+                                                   offHeapFileSegmentCount);
   }
 
   private static ExecutorService createQueryThreadPool(int maxConcurrentQueries, int indexesPerCahce) {
@@ -256,12 +270,12 @@ public class LuceneIndexManager {
     }
   }
 
-  private Directory createDirectoryFor(File path) throws IOException {
+  private Directory createDirectoryFor(File path, String name) throws IOException {
     if (ramdir) {
       return new RAMDirectory();
     } else if (offHeapdir) {
-      throw new AssertionError();
-      // return new OffHeapDirectory(path.getPath(), offHeapStorageManager);
+      Random random = new Random();
+      return new OffHeapDirectory(offHeapFileSystem, String.valueOf(random.nextInt()));
     } else {
       return FSDirectory.open(path);
     }
@@ -431,15 +445,15 @@ public class LuceneIndexManager {
     return cacheName + File.separator + idxId;
   }
 
-  private synchronized Directory getOrCreateTempRamDirectory(String cacheName, String idxId) {
+  private synchronized Directory getOrCreateTempRamDirectory(String cacheName, String idxId) throws IOException {
     String indexName = getDirName(cacheName, idxId);
     Directory memoryDir = tempDirs.get(indexName);
     if (memoryDir != null) { return memoryDir; }
     if (ramdir) {
       memoryDir = new RAMDirectory();
     } else if (offHeapdir) {
-      throw new AssertionError();
-      // memoryDir = new OffHeapDirectory(indexName, offHeapStorageManager);
+      Random random = new Random();
+      memoryDir = new OffHeapDirectory(offHeapFileSystem, String.valueOf(random.nextInt()));
     } else {
       throw new AssertionError("Shouldnt get here");
     }
@@ -965,8 +979,8 @@ public class LuceneIndexManager {
 
           if (!load) {
             logger.info(String.format("Creating search index [%s/%d]", groupName, idxSegment));
-            luceneIndex = new LuceneIndex(createDirectoryFor(path), idxStr, path, useCommitThread, this, cfg,
-                                          loggerFactory);
+            luceneIndex = new LuceneIndex(createDirectoryFor(path, groupName), idxStr, path, useCommitThread, this,
+                                          cfg, loggerFactory);
           } else {
             luceneIndex = new LuceneIndex(directoryFor(groupName, idxStr, path), idxStr, path, useCommitThread, this,
                                           cfg, loggerFactory); // FIXME
