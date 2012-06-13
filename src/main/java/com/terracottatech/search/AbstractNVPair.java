@@ -666,9 +666,10 @@ public abstract class AbstractNVPair implements NVPair {
     @Override
     public int compareTo(NVPair other) {
       if (other instanceof NullNVPair) return 1; // move nulls to front
-      if (!(other instanceof EnumNVPair && className.equals(((EnumNVPair) other).className))) throw new IllegalArgumentException(
-                                                                                                                                 "Incompatible value given to compareTo: "
-                                                                                                                                     + other);
+      if (!(other instanceof EnumNVPair && getName().equals(other.getName()) && className
+          .equals(((EnumNVPair) other).className))) throw new IllegalArgumentException(
+                                                                                       "Incompatible value given to compareTo: "
+                                                                                           + other);
       return ordinal - ((EnumNVPair) other).ordinal;
     }
 
@@ -712,6 +713,7 @@ public abstract class AbstractNVPair implements NVPair {
 
     @Override
     public int compareTo(NVPair other) {
+      if (!getName().equals(other.getName())) throw new IllegalArgumentException("Names don't match: " + other);
       return basicEquals(other) ? 0 : -1;
     }
   }
