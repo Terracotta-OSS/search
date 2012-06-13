@@ -663,6 +663,15 @@ public abstract class AbstractNVPair implements NVPair {
       return new EnumNVPair(getName(), (Enum) newValue);
     }
 
+    @Override
+    public int compareTo(NVPair other) {
+      if (other instanceof NullNVPair) return 1; // move nulls to front
+      if (!(other instanceof EnumNVPair && className.equals(((EnumNVPair) other).className))) throw new IllegalArgumentException(
+                                                                                                                                 "Incompatible value given to compareTo: "
+                                                                                                                                     + other);
+      return ordinal - ((EnumNVPair) other).ordinal;
+    }
+
   }
 
   public static class NullNVPair extends AbstractNVPair {
@@ -699,6 +708,11 @@ public abstract class AbstractNVPair implements NVPair {
     public NVPair cloneWithNewValue(Object newValue) {
       if (newValue != null) { throw new IllegalArgumentException(); }
       return this;
+    }
+
+    @Override
+    public int compareTo(NVPair other) {
+      return basicEquals(other) ? 0 : -1;
     }
   }
 
