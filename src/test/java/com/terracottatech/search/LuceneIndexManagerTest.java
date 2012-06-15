@@ -133,6 +133,41 @@ public class LuceneIndexManagerTest extends TestCase {
 
   }
 
+  public void testDestroy() throws IndexException {
+    assertEquals(0, idxManager.getSearchIndexNames().length);
+    List<NVPair> attributes = new ArrayList<NVPair>();
+    attributes.add(new AbstractNVPair.StringNVPair("attr1", "foo"));
+
+    ValueID valueOid = new ValueID(1);
+
+    for (int i = 0; i < 10; i++) {
+      idxManager
+          .insert("foo", "key-" + i, valueOid, attributes, Collections.EMPTY_LIST, i, new NullProcessingContext());
+    }
+
+    LinkedList queryStack = new LinkedList();
+    queryStack.addFirst(AbstractNVPair.createNVPair("attr1", "foo"));
+    queryStack.addFirst(StackOperations.TERM);
+    SearchResult result = idxManager.searchIndex("foo", queryStack, true, true, Collections.EMPTY_SET,
+                                                 Collections.EMPTY_SET, EMPTY, EMPTY, -1);
+    assertEquals(10, result.getQueryResults().size());
+
+    idxManager.destroy("foo");
+
+    result = idxManager.searchIndex("foo", queryStack, true, true, Collections.EMPTY_SET, Collections.EMPTY_SET, EMPTY,
+                                    EMPTY, -1);
+    assertEquals(0, result.getQueryResults().size());
+
+    for (int i = 0; i < 10; i++) {
+      idxManager
+          .insert("foo", "key-" + i, valueOid, attributes, Collections.EMPTY_LIST, i, new NullProcessingContext());
+    }
+
+    result = idxManager.searchIndex("foo", queryStack, true, true, Collections.EMPTY_SET, Collections.EMPTY_SET, EMPTY,
+                                    EMPTY, -1);
+    assertEquals(10, result.getQueryResults().size());
+  }
+
   public void testSimpleSearch() throws IndexException {
     assertEquals(0, idxManager.getSearchIndexNames().length);
     List<NVPair> attributes = new ArrayList<NVPair>();

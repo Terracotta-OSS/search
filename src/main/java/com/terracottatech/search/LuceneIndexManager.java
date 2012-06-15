@@ -203,6 +203,26 @@ public class LuceneIndexManager {
     return indexDir.isDirectory() ? indexDir.list() : new String[0];
   }
 
+  private void destroyGroup(String indexName) {
+    final IndexGroup group;
+
+    synchronized (idxGroups) {
+      group = idxGroups.remove(indexName);
+    }
+
+    if (group == null) { return; }
+
+    logger.info("Destroying existing search index for " + indexName);
+
+    group.close();
+
+    try {
+      Util.deleteDirectory(group.getPath());
+    } catch (IOException e) {
+      logger.error(e);
+    }
+  }
+
   private IndexGroup getOrCreateGroup(String name, List<NVPair> attrs, boolean load) throws IndexException {
     IndexGroup group = getGroup(name);
     if (group == null) {
@@ -327,6 +347,10 @@ public class LuceneIndexManager {
     group.insert(key, value, attributes, storeOnlyAttributes, segmentId, context);
   }
 
+  public void destroy(String indexName) {
+    destroyGroup(indexName);
+  }
+
   public void updateKey(String indexName, String existingKey, String newKey, int segmentId, ProcessingContext context)
       throws IndexException {
     IndexGroup group = getGroup(indexName);
@@ -366,12 +390,14 @@ public class LuceneIndexManager {
     final Map<String, List<IndexFile>> filesToSync = getFilesToSync();
 
     return new SyncSnapshot() {
+      @Override
       public void release() {
         for (String name : filesToSync.keySet()) {
           LuceneIndexManager.this.release(name);
         }
       }
 
+      @Override
       public Map<String, List<IndexFile>> getFilesToSync() {
         return filesToSync;
       }
@@ -695,6 +721,7 @@ public class LuceneIndexManager {
 
       for (final LuceneIndex idx : indices.values()) {
         searchTasks.add(new Callable<SearchResult>() {
+          @Override
           public SearchResult call() throws Exception {
             return idx.search(queryStack, includeKeys, includeValues, attrs, groupByAttributes, sortAttributes,
                               maxResults, includeCount);
