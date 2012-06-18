@@ -27,6 +27,7 @@ import com.terracottatech.search.AbstractNVPair.LongNVPair;
 import com.terracottatech.search.AbstractNVPair.ShortNVPair;
 import com.terracottatech.search.AbstractNVPair.SqlDateNVPair;
 import com.terracottatech.search.AbstractNVPair.StringNVPair;
+import com.terracottatech.search.LuceneIndexManager.AttributeProperties;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -36,10 +37,10 @@ import java.util.Stack;
 
 public class LuceneQueryBuilder {
 
-  private final List                   queryStack;
-  private final Map<String, ValueType> indexSchema;
+  private final List                             queryStack;
+  private final Map<String, AttributeProperties> indexSchema;
 
-  public LuceneQueryBuilder(List queryStack, Map<String, ValueType> indexSchema) {
+  public LuceneQueryBuilder(List queryStack, Map<String, AttributeProperties> indexSchema) {
     this.queryStack = queryStack;
     this.indexSchema = indexSchema;
   }
@@ -192,11 +193,11 @@ public class LuceneQueryBuilder {
   }
 
   private void verifyType(NVPair nvPair) throws IndexException {
-    ValueType indexType = indexSchema.get(nvPair.getName());
-    if (indexType != null && indexType != nvPair.getType()) {
+    AttributeProperties attrProps = indexSchema.get(nvPair.getName());
+    if (attrProps != null && attrProps.getType() != nvPair.getType()) {
       //
-      throw new IndexException("Expected " + indexType.name() + " for attribute [" + nvPair.getName() + "], but was "
-                               + nvPair.getType().name());
+      throw new IndexException("Expected " + attrProps.getType().name() + " for attribute [" + nvPair.getName()
+                               + "], but was " + nvPair.getType().name());
     }
   }
 

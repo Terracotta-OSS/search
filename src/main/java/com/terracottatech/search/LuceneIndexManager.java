@@ -61,7 +61,6 @@ public class LuceneIndexManager {
   private final File                                  indexDir;
   private final boolean                               ramdir;
   private final boolean                               offHeapdir;
-  private boolean                                     shutdown;
   private final boolean                               useCommitThread;
   private final LoggerFactory                         loggerFactory;
   private final Configuration                         cfg;
@@ -69,8 +68,9 @@ public class LuceneIndexManager {
   private final int                                   offHeapFileSegmentCount;
   private final int                                   offHeapFileBlockSize;
   private final int                                   offHeapFileMaxPageSize;
-  private FileSystem                                  offHeapFileSystem;
   private final ExecutorService                       queryThreadPool;
+  private FileSystem                                  offHeapFileSystem;
+  private boolean                                     shutdown;
 
   static final String                                 TERRACOTTA_CACHE_NAME_FILE = "__terracotta_cache_name.txt";
   static final String                                 TERRACOTTA_SCHEMA_FILE     = "__terracotta_schema.properties";
@@ -236,7 +236,7 @@ public class LuceneIndexManager {
         }
       }
       group.storeName();
-      Map<String, ValueType> idxSchema;
+      Map<String, AttributeProperties> idxSchema;
       synchronized (group) {
         if (attrs == null) idxSchema = group.loadSchema();
         else {
@@ -372,12 +372,12 @@ public class LuceneIndexManager {
     }
   }
 
-  private static Map<String, ValueType> extractSchema(List<NVPair> attributes) throws IndexException {
-    Map<String, ValueType> schema = new HashMap<String, ValueType>();
+  private static Map<String, AttributeProperties> extractSchema(List<NVPair> attributes) throws IndexException {
+    Map<String, AttributeProperties> schema = new HashMap<String, AttributeProperties>();
 
     for (NVPair attr : attributes) {
-      ValueType prev = schema.put(attr.getName(), attr.getType());
-      if (prev != null && attr.getType() != prev) {
+      AttributeProperties prev = schema.put(attr.getName(), new AttributeProperties(attr.getType(), true));
+      if (prev != null && attr.getType() != prev.getType()) {
         //
         throw new IndexException("Differing types for repeated attribute: " + attr.getName());
       }
@@ -489,20 +489,20 @@ public class LuceneIndexManager {
   }
 
   final class IndexGroup {
-    private final ConcurrentMap<Integer, LuceneIndex> indices = new ConcurrentHashMap<Integer, LuceneIndex>(
-                                                                                                            perCacheIdxCt);
-    private final String                              groupName;
-    private final ConcurrentMap<String, ValueType>    schema  = new ConcurrentHashMap<String, ValueType>();
-    private File                                      schemaSnapshot;
+    private final ConcurrentMap<Integer, LuceneIndex>        indices = new ConcurrentHashMap<Integer, LuceneIndex>(
+                                                                                                                   perCacheIdxCt);
+    private final String                                     groupName;
+    private final ConcurrentMap<String, AttributeProperties> schema  = new ConcurrentHashMap<String, AttributeProperties>();
+    private File                                             schemaSnapshot;
 
     private IndexGroup(String name, boolean load) throws IndexException {
       groupName = name;
 
       // always set the type for our internal fields
-      schema.put(LuceneIndex.KEY_FIELD_NAME, ValueType.STRING);
-      schema.put(LuceneIndex.KEY_BYTES_FIELD_NAME, ValueType.BYTE_ARRAY);
-      schema.put(LuceneIndex.VALUE_FIELD_NAME, ValueType.LONG);
-      schema.put(LuceneIndex.SEGMENT_ID_FIELD_NAME, ValueType.LONG);
+      schema.put(LuceneIndex.KEY_FIELD_NAME, new AttributeProperties(ValueType.STRING, true));
+      schema.put(LuceneIndex.KEY_BYTES_FIELD_NAME, new AttributeProperties(ValueType.BYTE_ARRAY, false));
+      schema.put(LuceneIndex.VALUE_FIELD_NAME, new AttributeProperties(ValueType.LONG, true));
+      schema.put(LuceneIndex.SEGMENT_ID_FIELD_NAME, new AttributeProperties(ValueType.LONG, true));
 
       try {
         Util.ensureDirectory(getPath());
@@ -688,7 +688,8 @@ public class LuceneIndexManager {
       String attributeName = enumPair.getName();
 
       // XXX: what if type doesn't exist in schema here?
-      ValueType type = schema.get(attributeName);
+      AttributeProperties attrProps = schema.get(attributeName);
+      ValueType type = attrProps != null ? attrProps.getType() : null;
 
       // XXX: do error checking and optimization here when decoding the enum ordinal
       AggregatorOperations aggregatorType = AggregatorOperations.values()[enumPair.getOrdinal()];
@@ -1019,7 +1020,7 @@ public class LuceneIndexManager {
       }
     }
 
-    void checkSchema(List<NVPair> attributes) throws IndexException {
+    void checkSchema(List<NVPair> attributes, boolean indexed) throws IndexException {
       for (NVPair nvpair : attributes) {
         String attrName = nvpair.getName();
 
@@ -1029,16 +1030,17 @@ public class LuceneIndexManager {
           throw new IndexException("Illegal attribute name present: " + attrName);
         }
 
-        ValueType schemaType = schema.get(attrName);
-        if (schemaType == null) {
+        AttributeProperties attrProps = schema.get(attrName);
+        if (attrProps == null) {
           // a new attribute name -- update schema
           synchronized (this) {
             // check again since races allowed up until this point
-            schemaType = schema.get(attrName);
+            attrProps = schema.get(attrName);
 
-            if (schemaType == null) {
-              Map<String, ValueType> clone = new HashMap<String, ValueType>(schema);
-              ValueType prev = clone.put(attrName, nvpair.getType());
+            if (attrProps == null) {
+              attrProps = new AttributeProperties(nvpair.getType(), indexed);
+              Map<String, AttributeProperties> clone = new HashMap<String, AttributeProperties>(schema);
+              AttributeProperties prev = clone.put(attrName, attrProps);
               if (prev != null) { throw new AssertionError("replaced mapping for " + attrName); }
 
               // attempt disk update
@@ -1046,28 +1048,28 @@ public class LuceneIndexManager {
               storeSchema(clone);
 
               // disk update okay -- now change memory
-              prev = schema.put(attrName, nvpair.getType());
+              prev = schema.put(attrName, attrProps);
               if (prev != null) { throw new AssertionError("replaced mapping for " + attrName); }
-
-              schemaType = nvpair.getType();
             }
           }
         }
 
-        if (!schemaType.equals(nvpair.getType())) {
+        ValueType type = attrProps.getType();
+
+        if (!type.equals(nvpair.getType())) {
           //
           throw new IndexException("Attribute type (" + nvpair.getType().name() + ") does not match schema type ("
-                                   + schemaType.name() + ")");
+                                   + type.name() + ")");
         }
       }
 
     }
 
-    Map<String, ValueType> getSchema() {
+    Map<String, AttributeProperties> getSchema() {
       return Collections.unmodifiableMap(schema);
     }
 
-    private void storeSchema(Map<String, ValueType> schemaToStore) throws IndexException {
+    private void storeSchema(Map<String, AttributeProperties> schemaToStore) throws IndexException {
       File tmp;
       File path = getPath();
       try {
@@ -1078,8 +1080,8 @@ public class LuceneIndexManager {
 
       Properties props = new Properties();
 
-      for (Map.Entry<String, ValueType> entry : schemaToStore.entrySet()) {
-        props.setProperty(entry.getKey(), entry.getValue().name());
+      for (Map.Entry<String, AttributeProperties> entry : schemaToStore.entrySet()) {
+        props.setProperty(entry.getKey(), entry.getValue().getType().name() + "," + entry.getValue().isIndexed());
       }
 
       FileOutputStream fout = null;
@@ -1114,7 +1116,7 @@ public class LuceneIndexManager {
 
     }
 
-    private Map<String, ValueType> loadSchema() throws IndexException {
+    private Map<String, AttributeProperties> loadSchema() throws IndexException {
       File schemaFile = new File(getPath(), TERRACOTTA_SCHEMA_FILE);
 
       Properties data = new Properties();
@@ -1134,13 +1136,16 @@ public class LuceneIndexManager {
         }
       }
 
-      Map<String, ValueType> res = new HashMap<String, ValueType>();
+      Map<String, AttributeProperties> res = new HashMap<String, AttributeProperties>();
 
       for (Enumeration<String> i = (Enumeration<String>) data.propertyNames(); i.hasMoreElements();) {
         String key = i.nextElement();
+        String value = data.getProperty(key).trim();
 
-        String typeName = data.getProperty(key);
+        String[] split = value.split(",");
+        if (split.length != 2) { throw new IndexException("Unexpected format: " + value); }
 
+        String typeName = split[0];
         ValueType type;
         try {
           type = Enum.valueOf(ValueType.class, typeName);
@@ -1148,7 +1153,13 @@ public class LuceneIndexManager {
           throw new IndexException("No such type (" + typeName + ") for key " + key);
         }
 
-        res.put(key, type);
+        String indexed = split[1];
+        if (!"false".equals(indexed) && !"true".equals(indexed)) {
+          //
+          throw new IndexException("Unexpected format for indexed: " + indexed);
+        }
+
+        res.put(key, new AttributeProperties(type, Boolean.valueOf(indexed)));
       }
       return res;
     }
@@ -1212,6 +1223,29 @@ public class LuceneIndexManager {
           //
         }
       }
+    }
+  }
+
+  static class AttributeProperties {
+    private final ValueType type;
+    private final boolean   indexed;
+
+    AttributeProperties(ValueType type, boolean indexed) {
+      this.type = type;
+      this.indexed = indexed;
+    }
+
+    ValueType getType() {
+      return type;
+    }
+
+    boolean isIndexed() {
+      return indexed;
+    }
+
+    @Override
+    public String toString() {
+      return getClass().getSimpleName() + "(" + type.name() + ",indexed=" + indexed + ")";
     }
   }
 

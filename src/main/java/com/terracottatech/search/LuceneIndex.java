@@ -50,6 +50,7 @@ import com.terracottatech.search.AbstractNVPair.ShortNVPair;
 import com.terracottatech.search.AbstractNVPair.SqlDateNVPair;
 import com.terracottatech.search.AbstractNVPair.StringNVPair;
 import com.terracottatech.search.AbstractNVPair.ValueIdNVPair;
+import com.terracottatech.search.LuceneIndexManager.AttributeProperties;
 import com.terracottatech.search.LuceneIndexManager.IndexGroup;
 import com.terracottatech.search.aggregator.Aggregator;
 
@@ -317,14 +318,14 @@ public class LuceneIndex {
 
         for (String attrKey : attributeSet) {
           // XXX: type lookup can be done up front
-          ValueType type = idxGroup.getSchema().get(attrKey);
+          ValueType type = getTypeForAttribute(attrKey);
 
           Object attrValue = getFieldValue(doc, attrKey, type);
           attributes.add(AbstractNVPair.createNVPair(attrKey, attrValue, type));
         }
 
         for (String attrKey : groupByAttributes) {
-          ValueType type = idxGroup.getSchema().get(attrKey);
+          ValueType type = getTypeForAttribute(attrKey);
           Object attrValue = getFieldValue(doc, attrKey, type);
           groupByAttrs.add(AbstractNVPair.createNVPair(attrKey, attrValue, type));
         }
@@ -334,7 +335,7 @@ public class LuceneIndex {
 
           for (NVPair pair : sortAttributes) {
             String sortAttrKey = pair.getName();
-            ValueType type = idxGroup.getSchema().get(sortAttrKey);
+            ValueType type = getTypeForAttribute(sortAttrKey);
             Object attrValue = getFieldValue(doc, sortAttrKey, type);
             NVPair attributePair = AbstractNVPair.createNVPair(sortAttrKey, attrValue, type);
             sortAttributesList.add(attributePair);
@@ -362,6 +363,11 @@ public class LuceneIndex {
         }
       }
     }
+  }
+
+  private ValueType getTypeForAttribute(String attrName) {
+    AttributeProperties attrProps = idxGroup.getSchema().get(attrName);
+    return attrProps == null ? null : attrProps.getType();
   }
 
   private Object getFieldValue(Document doc, String attrKey, ValueType type) {
@@ -549,10 +555,13 @@ public class LuceneIndex {
       for (Fieldable f : oldDoc.getFields()) {
         String fieldName = f.name();
         if (!fieldName.equals(KEY_FIELD_NAME)) {
-          ValueType fieldType = idxGroup.getSchema().get(fieldName);
-          if (fieldType == null) { throw new AssertionError("missing type for field " + fieldName); }
+          AttributeProperties attrProps = idxGroup.getSchema().get(fieldName);
+          if (attrProps == null) { throw new AssertionError("missing data for field " + fieldName); }
+          ValueType fieldType = attrProps.getType();
+          boolean indexed = attrProps.isIndexed();
+
           Object value = getFieldValue(oldDoc, fieldName, fieldType);
-          addField(newDoc, fieldName, value, fieldType, f.isIndexed());
+          addField(newDoc, fieldName, value, fieldType, indexed);
         }
       }
 
@@ -643,8 +652,8 @@ public class LuceneIndex {
                               long segmentOid, boolean isInsert) throws IndexException {
     checkAccessor();
 
-    idxGroup.checkSchema(attributes);
-    idxGroup.checkSchema(storeOnlyAttributes);
+    idxGroup.checkSchema(attributes, true);
+    idxGroup.checkSchema(storeOnlyAttributes, false);
 
     Document doc = new Document();
 
@@ -914,7 +923,7 @@ public class LuceneIndex {
   }
 
   private Integer getSortFieldType(String attributeName) throws IndexException {
-    ValueType valueType = idxGroup.getSchema().get(attributeName);
+    ValueType valueType = getTypeForAttribute(attributeName);
     if (valueType == null) return null;
 
     switch (valueType) {
@@ -992,10 +1001,12 @@ public class LuceneIndex {
 
   private static class EmptyDocIdList implements DocIdList {
 
+    @Override
     public int size() {
       return 0;
     }
 
+    @Override
     public int get(int index) {
       throw new NoSuchElementException("index: " + index);
     }
@@ -1010,10 +1021,12 @@ public class LuceneIndex {
       scoreDocs = topDocs.scoreDocs;
     }
 
+    @Override
     public int size() {
       return scoreDocs.length;
     }
 
+    @Override
     public int get(int index) {
       return scoreDocs[index].doc;
     }
@@ -1054,10 +1067,12 @@ public class LuceneIndex {
       return true;
     }
 
+    @Override
     public int size() {
       return ids.size();
     }
 
+    @Override
     public int get(int index) {
       return ids.get(index);
     }
