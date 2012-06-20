@@ -3,91 +3,20 @@
   <parent>
     <artifactId>forge-parent-ee</artifactId>
     <groupId>org.terracotta.forge</groupId>
-    <version>2.3</version>
+    <version>2.4</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.terracottatech</groupId>
-  <artifactId>search</artifactId>
+  <artifactId>search-root</artifactId>
   <version>1.0.0-SNAPSHOT</version>
-  <packaging>jar</packaging>
+  <packaging>pom</packaging>
 
   <name>Terracotta Search</name>
 
-  <dependencies>
-    <!-- needed to be compile scope for shaded plugin to work
-         however this dependency will be removed during install phase
-         by shaded plugin. See dependency-reduced-pom.xml in target -->
-    <dependency>
-      <groupId>org.apache.lucene</groupId>
-      <artifactId>lucene-core</artifactId>
-      <version>3.0.3</version>
-    </dependency>
+  <modules>
+    <module>search</module>
     
-    <dependency>
-      <groupId>com.terracottatech</groupId>
-      <artifactId>offheap-store</artifactId>
-      <version>1.0.8-SNAPSHOT</version>
-    </dependency>
-    
-    <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <version>4.8.2</version>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
+  </modules>
 
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-shade-plugin</artifactId>
-        <version>1.6</version>
-        <executions>
-          <execution>
-            <phase>package</phase>
-            <goals>
-              <goal>shade</goal>
-            </goals>
-            <configuration>
-              <artifactSet>
-                <includes>
-                  <include>org.apache.lucene:*</include>
-                </includes>
-              </artifactSet>            
-              <relocations>
-                <relocation>
-                  <pattern>org.apache.lucene</pattern>
-                  <shadedPattern>org.terracotta.shaded.lucene</shadedPattern>
-                </relocation>
-              </relocations>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>    
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-source-plugin</artifactId>
-        <configuration>
-          <attach>false</attach>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-install-plugin</artifactId>
-        <configuration>
-          <createChecksum>true</createChecksum>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <configuration>
-          <source>1.6</source>
-          <target>1.6</target>
-        </configuration>
-      </plugin>
-    </plugins>
-  </build>
 </project>
