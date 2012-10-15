@@ -3,8 +3,6 @@
  */
 package com.terracottatech.search;
 
-import com.terracottatech.search.AbstractNVPair.EnumNVPair;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -15,7 +13,7 @@ public class QueryResultComparator implements Comparator<IndexQueryResult> {
   private final Collection<Comparator<IndexQueryResult>> components = new ArrayList<Comparator<IndexQueryResult>>();
 
   public QueryResultComparator(Collection<? extends NVPair> sortBy) {
-    for (EnumNVPair sortAttributePair : (Collection<EnumNVPair>) sortBy) {
+    for (NVPairEnum sortAttributePair : (Collection<NVPairEnum>) sortBy) {
       final String attributeName = sortAttributePair.getName();
       // Look up by ordinal b/c direct comparison not possible due to object value for enums loaded by calling class's
       // classloader, which is different from one for this class

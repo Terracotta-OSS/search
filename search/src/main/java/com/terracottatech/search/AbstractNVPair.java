@@ -19,6 +19,7 @@ public abstract class AbstractNVPair implements NVPair {
     this.name = name;
   }
 
+  @Override
   public final String getName() {
     return name;
   }
@@ -28,6 +29,7 @@ public abstract class AbstractNVPair implements NVPair {
     return getType() + "(" + getName() + "," + valueAsString() + ")";
   }
 
+  @Override
   public abstract NVPair cloneWithNewName(String newName);
 
   @Override
@@ -55,8 +57,10 @@ public abstract class AbstractNVPair implements NVPair {
   }
 
   // XXX: make this non-public when possible
+  @Override
   public abstract String valueAsString();
 
+  @Override
   public abstract ValueType getType();
 
   // private static class Template extends AbstractNVPair {
@@ -106,6 +110,7 @@ public abstract class AbstractNVPair implements NVPair {
       return value;
     }
 
+    @Override
     public Object getObjectValue() {
       return value;
     }
@@ -131,6 +136,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new ByteNVPair(newName, value);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new ByteNVPair(getName(), (Byte) newValue);
     }
@@ -148,6 +154,7 @@ public abstract class AbstractNVPair implements NVPair {
       return value;
     }
 
+    @Override
     public Object getObjectValue() {
       return value;
     }
@@ -173,6 +180,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new BooleanNVPair(newName, value);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new BooleanNVPair(getName(), (Boolean) newValue);
     }
@@ -190,6 +198,7 @@ public abstract class AbstractNVPair implements NVPair {
       return value;
     }
 
+    @Override
     public Object getObjectValue() {
       return value;
     }
@@ -215,6 +224,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new CharNVPair(newName, value);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new CharNVPair(getName(), (Character) newValue);
     }
@@ -232,6 +242,7 @@ public abstract class AbstractNVPair implements NVPair {
       return value;
     }
 
+    @Override
     public Object getObjectValue() {
       return value;
     }
@@ -257,6 +268,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new DoubleNVPair(newName, value);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new DoubleNVPair(getName(), (Double) newValue);
     }
@@ -274,6 +286,7 @@ public abstract class AbstractNVPair implements NVPair {
       return value;
     }
 
+    @Override
     public Object getObjectValue() {
       return value;
     }
@@ -299,6 +312,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new FloatNVPair(newName, value);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new FloatNVPair(getName(), (Float) newValue);
     }
@@ -316,6 +330,7 @@ public abstract class AbstractNVPair implements NVPair {
       return value;
     }
 
+    @Override
     public Object getObjectValue() {
       return value;
     }
@@ -341,6 +356,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new IntNVPair(newName, value);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new IntNVPair(getName(), (Integer) newValue);
     }
@@ -358,6 +374,7 @@ public abstract class AbstractNVPair implements NVPair {
       return value;
     }
 
+    @Override
     public Object getObjectValue() {
       return value;
     }
@@ -383,6 +400,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new ShortNVPair(newName, value);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new ShortNVPair(getName(), (Short) newValue);
     }
@@ -400,6 +418,7 @@ public abstract class AbstractNVPair implements NVPair {
       return value;
     }
 
+    @Override
     public Object getObjectValue() {
       return value;
     }
@@ -425,6 +444,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new LongNVPair(newName, value);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new LongNVPair(getName(), (Long) newValue);
     }
@@ -442,6 +462,7 @@ public abstract class AbstractNVPair implements NVPair {
       return value;
     }
 
+    @Override
     public Object getObjectValue() {
       return value;
     }
@@ -467,6 +488,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new StringNVPair(newName, value);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new StringNVPair(getName(), (String) newValue);
     }
@@ -484,6 +506,7 @@ public abstract class AbstractNVPair implements NVPair {
       return value;
     }
 
+    @Override
     public Object getObjectValue() {
       return value;
     }
@@ -513,6 +536,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new ByteArrayNVPair(newName, value);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new ByteArrayNVPair(getName(), (byte[]) newValue);
     }
@@ -530,6 +554,7 @@ public abstract class AbstractNVPair implements NVPair {
       return value;
     }
 
+    @Override
     public Object getObjectValue() {
       return value;
     }
@@ -555,6 +580,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new DateNVPair(newName, value);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new DateNVPair(getName(), (Date) newValue);
     }
@@ -572,6 +598,7 @@ public abstract class AbstractNVPair implements NVPair {
       return value;
     }
 
+    @Override
     public Object getObjectValue() {
       return value;
     }
@@ -597,12 +624,13 @@ public abstract class AbstractNVPair implements NVPair {
       return new SqlDateNVPair(newName, value);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new SqlDateNVPair(getName(), (java.sql.Date) newValue);
     }
   }
 
-  public static class EnumNVPair extends AbstractNVPair {
+  public static class EnumNVPair extends AbstractNVPair implements NVPairEnum {
 
     private final String className;
     private final int    ordinal;
@@ -611,6 +639,7 @@ public abstract class AbstractNVPair implements NVPair {
       this(name, e.getClass().getName(), e.ordinal());
     }
 
+    @Override
     public Object getObjectValue() {
       try {
         return Class.forName(className, false, Thread.currentThread().getContextClassLoader()).getEnumConstants()[ordinal];
@@ -659,6 +688,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new EnumNVPair(newName, className, ordinal);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new EnumNVPair(getName(), (Enum) newValue);
     }
@@ -681,6 +711,7 @@ public abstract class AbstractNVPair implements NVPair {
       super(name);
     }
 
+    @Override
     public Object getObjectValue() {
       return null;
     }
@@ -706,6 +737,7 @@ public abstract class AbstractNVPair implements NVPair {
       return new NullNVPair(newName);
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       if (newValue != null) { throw new IllegalArgumentException(); }
       return this;
@@ -727,6 +759,7 @@ public abstract class AbstractNVPair implements NVPair {
       this.id = oid;
     }
 
+    @Override
     public Object getObjectValue() {
       return id;
     }
@@ -756,6 +789,7 @@ public abstract class AbstractNVPair implements NVPair {
       return ValueType.VALUE_ID;
     }
 
+    @Override
     public NVPair cloneWithNewValue(Object newValue) {
       return new ValueIdNVPair(getName(), (ValueID) newValue);
     }
