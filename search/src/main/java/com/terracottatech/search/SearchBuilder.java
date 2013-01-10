@@ -4,6 +4,7 @@
 package com.terracottatech.search;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -191,11 +192,11 @@ public class SearchBuilder {
                   Set<String> groupByAttrs, List<NVPair> aggregatorList, List<NVPair> sortAttributes, int maxResults) {
       this.includeKeys = includeKeys;
       this.includeValues = includeValues;
-      this.queryStack = queryStack;
-      this.attributes = attributes;
-      this.groupByAttrs = groupByAttrs;
-      this.aggregatorList = aggregatorList;
-      this.sortAttributes = sortAttributes;
+      this.queryStack = Collections.unmodifiableList(new ArrayList(queryStack));
+      this.attributes = Collections.unmodifiableSet(new HashSet<String>(attributes));
+      this.groupByAttrs = Collections.unmodifiableSet(new HashSet<String>(groupByAttrs));
+      this.aggregatorList = Collections.unmodifiableList(new ArrayList<NVPair>(aggregatorList));
+      this.sortAttributes = Collections.unmodifiableList(new ArrayList<NVPair>(sortAttributes));
       this.maxResults = maxResults;
     }
 
