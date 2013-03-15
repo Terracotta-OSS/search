@@ -15,15 +15,18 @@ import java.util.Map;
 import java.util.Set;
 
 public final class ResultTools {
-  public static void mergeGroupedResults(List<? extends IndexQueryResult> indexResults) {
+  public static void mergeGroupedResults(List<? extends IndexQueryResult> indexResults, int maxGroups) {
     List<GroupedQueryResult> groups = (List<GroupedQueryResult>) indexResults;
     Map<Set<NVPair>, GroupedQueryResult> uniqueGroups = new LinkedHashMap<Set<NVPair>, GroupedQueryResult>();
+    if (maxGroups < 0) maxGroups = Integer.MAX_VALUE;
 
     for (GroupedQueryResult group : groups) {
       Set<NVPair> groupBy = group.getGroupedAttributes();
 
       GroupedQueryResult dest = uniqueGroups.get(groupBy);
-      if (dest == null) uniqueGroups.put(groupBy, group);
+      if (dest == null) {
+        if (uniqueGroups.size() < maxGroups) uniqueGroups.put(groupBy, group);
+      }
       else {
         aggregate(dest.getAggregators(), group.getAggregators());
       }
@@ -34,9 +37,7 @@ public final class ResultTools {
   }
 
   public static void aggregate(List<Aggregator> aggregates, List<Aggregator> incoming) {
-    if (incoming.isEmpty()) {
-      return;
-    } else {
+    if (!incoming.isEmpty()) {
       if (aggregates.isEmpty()) {
         aggregates.addAll(incoming);
       } else {
@@ -51,6 +52,7 @@ public final class ResultTools {
                                                                        final Comparator<IndexQueryResult> comp) {
     return Collections.min(resultsFromAllIndexes, new Comparator<List<T>>() {
 
+      @Override
       public int compare(List<T> o1, List<T> o2) {
         T head1 = o1.isEmpty() ? null : o1.get(0);
         T head2 = o2.isEmpty() ? null : o2.get(0);
@@ -62,6 +64,11 @@ public final class ResultTools {
   }
 
   public static <T extends IndexQueryResult> List<T> mergeSort(Collection<List<T>> idxResults, List<NVPair> sortBy) {
+    // No merging necessary if it's a singleton list
+    if (idxResults.size() == 1) {
+      return idxResults.iterator().next();
+    }
+
     T lowest = null;
     List<T> sorted = new ArrayList<T>();
     QueryResultComparator resComp = new QueryResultComparator(sortBy);
