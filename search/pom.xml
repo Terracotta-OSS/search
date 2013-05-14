@@ -4,6 +4,13 @@
     <connection>scm:git:git@github.com:Terracotta-OSS/search.git</connection>
     <developerConnection>scm:git:https://github.com/Terracotta-OSS/search.git</developerConnection>
   </scm>
+  <distributionManagement>
+     <repository>
+       <id>terracotta-staging</id>
+       <name>Terracotta Staging Repository</name>
+       <url>${terracotta-releases-url}</url>
+     </repository>
+  </distributionManagement>
   <parent>
     <artifactId>search-root</artifactId>
     <groupId>com.terracottatech</groupId>
