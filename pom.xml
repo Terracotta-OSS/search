@@ -8,10 +8,12 @@
   <parent>
     <groupId>org.terracotta.forge</groupId>
     <artifactId>forge-parent</artifactId>
-    <version>2.4</version>
+    <version>3.0</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
-
+  <properties>
+    <skipCheckstyle>true</skipCheckstyle>
+  </properties>
   <groupId>com.terracottatech</groupId>
   <artifactId>search-root</artifactId>
   <version>1.3.0-SNAPSHOT</version>
