@@ -91,6 +91,18 @@ public class SearchBuilder {
     return this;
   }
 
+  public SearchBuilder isNull(String name) {
+    add(StackOperations.NULL);
+    add(AbstractNVPair.createNVPair(name, null));
+    return this;
+  }
+
+  public SearchBuilder notNull(String name) {
+    add(StackOperations.NOT_NULL);
+    add(AbstractNVPair.createNVPair(name, null));
+    return this;
+  }
+
   public SearchBuilder greaterThan(String name, Object value) {
     add(StackOperations.GREATER_THAN);
     add(AbstractNVPair.createNVPair(name, value));
