@@ -636,7 +636,7 @@ public abstract class AbstractNVPair implements NVPair {
     private final int    ordinal;
 
     public EnumNVPair(String name, Enum e) {
-      this(name, e.getClass().getName(), e.ordinal());
+      this(name, e.getDeclaringClass().getName(), e.ordinal());
     }
 
     @Override
@@ -675,10 +675,12 @@ public abstract class AbstractNVPair implements NVPair {
       return ValueType.ENUM;
     }
 
+    @Override
     public int getOrdinal() {
       return ordinal;
     }
 
+    @Override
     public String getClassName() {
       return className;
     }
@@ -814,7 +816,7 @@ public abstract class AbstractNVPair implements NVPair {
   }
 
   public static String enumStorageString(Enum e) {
-    return enumStorageString(e.getClass().getName(), e.ordinal());
+    return enumStorageString(e.getDeclaringClass().getName(), e.ordinal());
   }
 
   private static String enumStorageString(String className, int ordinal) {
