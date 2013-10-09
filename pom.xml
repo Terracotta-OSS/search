@@ -1,5 +1,4 @@
-<?xml version="1.0"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
   <scm>
     <connection>scm:git:git@github.com:Terracotta-OSS/search.git</connection>
@@ -13,10 +12,14 @@
   <modelVersion>4.0.0</modelVersion>
   <properties>
     <skipCheckstyle>true</skipCheckstyle>
+  
+    <metadata.build.jenkins.url>http://jenkinsmaster.terracotta.lan:9000/job/search_trunk_releaser/14/</metadata.build.jenkins.url>
+    <metadata.build.maven.active.profiles>terracotta-repositories,release,tc-publish</metadata.build.maven.active.profiles>
+    <metadata.svn.revision>31627</metadata.svn.revision>
   </properties>
   <groupId>com.terracottatech</groupId>
   <artifactId>search-root</artifactId>
-  <version>1.3.3-SNAPSHOT</version>
+  <version>1.3.3</version>
   <packaging>pom</packaging>
 
   <name>Terracotta Search</name>
