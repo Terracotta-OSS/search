@@ -19,6 +19,10 @@ public class SearchBuilder {
   private boolean            includeKeys    = false;
   private boolean            includeValues  = false;
   private int                maxResults     = -1;
+  private long               requesterId    = -1;
+  private long               queryId        = -1;
+  private int                batchSize       = -1;
+  private int                resultSetOffset    = 0;
 
   public SearchBuilder() {
     //
@@ -179,6 +183,26 @@ public class SearchBuilder {
     return this;
   }
 
+  public SearchBuilder requesterId(long id) {
+    requesterId = id;
+    return this;
+  }
+
+  public SearchBuilder queryId(long id) {
+    queryId = id;
+    return this;
+  }
+
+  public SearchBuilder batchSize(int size) {
+    batchSize = size;
+    return this;
+  }
+
+  public SearchBuilder resultSetOffset(int offset) {
+    resultSetOffset = offset;
+    return this;
+  }
+
   // operations
   private void add(Object obj) {
     queryStack.add(obj);
@@ -186,7 +210,7 @@ public class SearchBuilder {
 
   public Search build() {
     return new Search(includeKeys, includeValues, queryStack, attributes, groupByAttrs, aggregatorList, sortAttributes,
-                      maxResults);
+                      maxResults, resultSetOffset, batchSize, requesterId, queryId);
   }
 
   public static class Search {
@@ -199,9 +223,15 @@ public class SearchBuilder {
     private final List<NVPair> aggregatorList;
     private final List<NVPair> sortAttributes;
     private final int          maxResults;
+    private final int          resultSetOffset;
+    private final int          batchSize;
+    private final long         requesterId;
+    private final long         queryId;
 
-    public Search(boolean includeKeys, boolean includeValues, List queryStack, Set<String> attributes,
-                  Set<String> groupByAttrs, List<NVPair> aggregatorList, List<NVPair> sortAttributes, int maxResults) {
+    private Search(boolean includeKeys, boolean includeValues, List queryStack, Set<String> attributes,
+                   Set<String> groupByAttrs, List<NVPair> aggregatorList, List<NVPair> sortAttributes, int maxResults,
+                   int offset, int batchSize,
+                   long requesterId, long queryId) {
       this.includeKeys = includeKeys;
       this.includeValues = includeValues;
       this.queryStack = Collections.unmodifiableList(new ArrayList(queryStack));
@@ -209,7 +239,11 @@ public class SearchBuilder {
       this.groupByAttrs = Collections.unmodifiableSet(new HashSet<String>(groupByAttrs));
       this.aggregatorList = Collections.unmodifiableList(new ArrayList<NVPair>(aggregatorList));
       this.sortAttributes = Collections.unmodifiableList(new ArrayList<NVPair>(sortAttributes));
+      this.resultSetOffset = offset;
       this.maxResults = maxResults;
+      this.batchSize = batchSize;
+      this.requesterId = requesterId;
+      this.queryId = queryId;
     }
 
     public boolean isIncludeKeys() {
@@ -240,8 +274,24 @@ public class SearchBuilder {
       return sortAttributes;
     }
 
+    public int getResultSetOffset() {
+      return resultSetOffset;
+    }
+
     public int getMaxResults() {
       return maxResults;
+    }
+
+    public int getBatchSize() {
+      return batchSize;
+    }
+
+    public long getRequesterId() {
+      return requesterId;
+    }
+
+    public long getQueryId() {
+      return queryId;
     }
   }
 
