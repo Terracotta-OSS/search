@@ -22,7 +22,6 @@ public class SearchBuilder {
   private long               requesterId    = -1;
   private long               queryId        = -1;
   private int                batchSize       = -1;
-  private int                resultSetOffset    = 0;
 
   public SearchBuilder() {
     //
@@ -198,11 +197,6 @@ public class SearchBuilder {
     return this;
   }
 
-  public SearchBuilder resultSetOffset(int offset) {
-    resultSetOffset = offset;
-    return this;
-  }
-
   // operations
   private void add(Object obj) {
     queryStack.add(obj);
@@ -210,7 +204,7 @@ public class SearchBuilder {
 
   public Search build() {
     return new Search(includeKeys, includeValues, queryStack, attributes, groupByAttrs, aggregatorList, sortAttributes,
-                      maxResults, resultSetOffset, batchSize, requesterId, queryId);
+                      maxResults, batchSize, requesterId, queryId);
   }
 
   public static class Search {
@@ -223,15 +217,13 @@ public class SearchBuilder {
     private final List<NVPair> aggregatorList;
     private final List<NVPair> sortAttributes;
     private final int          maxResults;
-    private final int          resultSetOffset;
     private final int          batchSize;
     private final long         requesterId;
     private final long         queryId;
 
     private Search(boolean includeKeys, boolean includeValues, List queryStack, Set<String> attributes,
                    Set<String> groupByAttrs, List<NVPair> aggregatorList, List<NVPair> sortAttributes, int maxResults,
-                   int offset, int batchSize,
-                   long requesterId, long queryId) {
+                   int batchSize, long requesterId, long queryId) {
       this.includeKeys = includeKeys;
       this.includeValues = includeValues;
       this.queryStack = Collections.unmodifiableList(new ArrayList(queryStack));
@@ -239,7 +231,6 @@ public class SearchBuilder {
       this.groupByAttrs = Collections.unmodifiableSet(new HashSet<String>(groupByAttrs));
       this.aggregatorList = Collections.unmodifiableList(new ArrayList<NVPair>(aggregatorList));
       this.sortAttributes = Collections.unmodifiableList(new ArrayList<NVPair>(sortAttributes));
-      this.resultSetOffset = offset;
       this.maxResults = maxResults;
       this.batchSize = batchSize;
       this.requesterId = requesterId;
@@ -272,10 +263,6 @@ public class SearchBuilder {
 
     public List<NVPair> getSortAttributes() {
       return sortAttributes;
-    }
-
-    public int getResultSetOffset() {
-      return resultSetOffset;
     }
 
     public int getMaxResults() {

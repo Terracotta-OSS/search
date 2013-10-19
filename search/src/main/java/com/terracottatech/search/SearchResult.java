@@ -10,11 +10,9 @@ import java.util.List;
 
 public class SearchResult<T extends IndexQueryResult> {
 
-  public static final SearchResult NULL_RESULT = new SearchResult(-1, 0, Collections.EMPTY_LIST,
+  public static final SearchResult NULL_RESULT = new SearchResult(0, Collections.EMPTY_LIST,
                                                                   Collections.EMPTY_LIST,
                                                                   false);
-
-  private final long               queryId;
   /**
    * Total result count, pre-announce with response
    */
@@ -24,9 +22,8 @@ public class SearchResult<T extends IndexQueryResult> {
   private final List<Aggregator>   aggregators;
   private final boolean            anyCriteriaMatch;
 
-  public SearchResult(long queryId, long resCt, List<T> queryResults, List<Aggregator> aggregators,
+  public SearchResult(long resCt, List<T> queryResults, List<Aggregator> aggregators,
                       boolean anyCriteriaMatch) {
-    this.queryId = queryId;
     this.totalResultCount = resCt;
     this.queryResults = queryResults;
     this.aggregators = aggregators;
@@ -43,10 +40,6 @@ public class SearchResult<T extends IndexQueryResult> {
 
   public boolean isAnyCriteriaMatch() {
     return anyCriteriaMatch;
-  }
-
-  public long getQueryId() {
-    return queryId;
   }
 
   public long getTotalResultCount() {
