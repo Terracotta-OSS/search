@@ -21,7 +21,7 @@ public class SearchBuilder {
   private int                maxResults     = -1;
   private long               requesterId    = -1;
   private long               queryId        = -1;
-  private int                batchSize       = -1;
+  private int                batchSize      = Search.BATCH_SIZE_UNLIMITED;
 
   public SearchBuilder() {
     //
@@ -220,6 +220,7 @@ public class SearchBuilder {
     private final int          batchSize;
     private final long         requesterId;
     private final long         queryId;
+    public static final int    BATCH_SIZE_UNLIMITED = -1;
 
     private Search(boolean includeKeys, boolean includeValues, List queryStack, Set<String> attributes,
                    Set<String> groupByAttrs, List<NVPair> aggregatorList, List<NVPair> sortAttributes, int maxResults,
