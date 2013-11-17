@@ -5,17 +5,12 @@ package com.terracottatech.search;
 
 import java.util.List;
 
-/**
- * Index search result.
- * 
- */
-public interface IndexQueryResult extends SortFieldProvider {
-
+interface SortFieldProvider {
   /**
-   * Entry attributes.
+   * Entry sortAttributes.
    * 
    * @return attributes
    */
-  public List<NVPair> getAttributes();
+  public List<NVPair> getSortAttributes();
 
 }

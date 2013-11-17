@@ -49,7 +49,7 @@ public final class ResultTools {
   }
 
   private static <T extends IndexQueryResult> List<T> nextIndexResults(Collection<List<T>> resultsFromAllIndexes,
-                                                                       final Comparator<IndexQueryResult> comp) {
+                                                                       final Comparator<? super IndexQueryResult> comp) {
     return Collections.min(resultsFromAllIndexes, new Comparator<List<T>>() {
 
       @Override

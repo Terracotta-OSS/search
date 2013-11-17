@@ -8,9 +8,9 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
-public class QueryResultComparator implements Comparator<IndexQueryResult> {
+public class QueryResultComparator implements Comparator<SortFieldProvider> {
 
-  private final Collection<Comparator<IndexQueryResult>> components = new ArrayList<Comparator<IndexQueryResult>>();
+  private final Collection<Comparator<SortFieldProvider>> components = new ArrayList<Comparator<SortFieldProvider>>();
 
   public QueryResultComparator(Collection<? extends NVPair> sortBy) {
     for (NVPairEnum sortAttributePair : (Collection<NVPairEnum>) sortBy) {
@@ -19,10 +19,10 @@ public class QueryResultComparator implements Comparator<IndexQueryResult> {
       // classloader, which is different from one for this class
       final boolean isDesc = SortOperations.DESCENDING.equals(SortOperations.values()[sortAttributePair.getOrdinal()]);
 
-      components.add(new Comparator<IndexQueryResult>() {
+      components.add(new Comparator<SortFieldProvider>() {
 
         @Override
-        public int compare(IndexQueryResult res1, IndexQueryResult res2) {
+        public int compare(SortFieldProvider res1, SortFieldProvider res2) {
           List<NVPair> o1 = res1.getSortAttributes();
           List<NVPair> o2 = res2.getSortAttributes();
 
@@ -53,8 +53,8 @@ public class QueryResultComparator implements Comparator<IndexQueryResult> {
   }
 
   @Override
-  public int compare(IndexQueryResult res1, IndexQueryResult res2) {
-    for (Comparator<IndexQueryResult> comp : components) {
+  public int compare(SortFieldProvider res1, SortFieldProvider res2) {
+    for (Comparator<SortFieldProvider> comp : components) {
       int res = comp.compare(res1, res2);
       if (res != 0) return res;
     }
