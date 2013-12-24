@@ -37,9 +37,7 @@ public class QueryResultComparator implements Comparator<SortFieldProvider> {
               if (!sortField1.getName().equals(sortField2.getName())) throw new IllegalArgumentException(String
                   .format("Query results contain incompatible sort fields: %s, %s", sortField1, sortField2));
 
-              // Move nulls to the front, regardless of desired search order
-              int comp = ValueType.NULL == sortField1.getType() || ValueType.NULL == sortField2.getType() ? 1
-                  : (isDesc ? -1 : 1);
+              int comp = isDesc ? -1 : 1;
               return sortField1.compareTo(sortField2) * comp;
             }
             n++;
