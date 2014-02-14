@@ -3,10 +3,12 @@
  */
 package com.terracottatech.search;
 
-public final class QueryID {
+import java.io.Serializable;
+
+public final class QueryID implements Serializable {
   public final long requesterId;
   public final long queryId;
-  private final int hash;
+  private final transient int hash;
 
   public QueryID(long requesterId, long queryId) {
     this.requesterId = requesterId;
