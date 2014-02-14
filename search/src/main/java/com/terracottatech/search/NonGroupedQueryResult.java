@@ -9,13 +9,13 @@ public interface NonGroupedQueryResult extends IndexQueryResult {
    * 
    * @return key
    */
-  public String getKey();
+  String getKey();
 
   /**
    * Entry value.
    * 
    * @return value
    */
-  public ValueID getValue();
+  ValueID getValue();
 
 }

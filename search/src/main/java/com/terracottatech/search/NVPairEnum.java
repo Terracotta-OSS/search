@@ -4,7 +4,7 @@
 package com.terracottatech.search;
 
 public interface NVPairEnum extends NVPair {
-  public String getClassName();
+  String getClassName();
 
-  public int getOrdinal();
+  int getOrdinal();
 }

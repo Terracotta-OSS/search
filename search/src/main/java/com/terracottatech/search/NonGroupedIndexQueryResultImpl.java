@@ -5,7 +5,7 @@ package com.terracottatech.search;
 
 import java.util.List;
 
-public class NonGroupedIndexQueryResultImpl extends IndexQueryResultImpl implements NonGroupedQueryResult, Comparable {
+public class NonGroupedIndexQueryResultImpl extends IndexQueryResultImpl implements NonGroupedQueryResult {
 
   private final String  key;
   private final ValueID valueID;
@@ -20,6 +20,7 @@ public class NonGroupedIndexQueryResultImpl extends IndexQueryResultImpl impleme
   /**
    * {@inheritDoc}
    */
+  @Override
   public String getKey() {
     return this.key;
   }
@@ -29,6 +30,7 @@ public class NonGroupedIndexQueryResultImpl extends IndexQueryResultImpl impleme
     return key.hashCode();
   }
 
+  @Override
   public ValueID getValue() {
     return valueID;
   }
@@ -43,17 +45,6 @@ public class NonGroupedIndexQueryResultImpl extends IndexQueryResultImpl impleme
       if (other.key != null) return false;
     } else if (!key.equals(other.key)) return false;
     return true;
-  }
-
-  public int compareTo(Object o) {
-    if (this == o) return 0;
-    if (o == null) return -1;
-    if (getClass() != o.getClass()) return -1;
-    NonGroupedIndexQueryResultImpl other = (NonGroupedIndexQueryResultImpl) o;
-    if (key == null) {
-      if (other.key != null) return -1;
-    }
-    return other.key.compareTo(key);
   }
 
   @Override

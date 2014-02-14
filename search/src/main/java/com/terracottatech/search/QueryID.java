@@ -3,12 +3,14 @@
  */
 package com.terracottatech.search;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.io.Serializable;
 
 public final class QueryID implements Serializable {
   public final long requesterId;
   public final long queryId;
-  private final transient int hash;
+  private transient int hash;
 
   public QueryID(long requesterId, long queryId) {
     this.requesterId = requesterId;
@@ -27,6 +29,11 @@ public final class QueryID implements Serializable {
   @Override
   public int hashCode() {
     return hash;
+  }
+
+  private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+    in.defaultReadObject();
+    hash = computeHash();
   }
 
   @Override

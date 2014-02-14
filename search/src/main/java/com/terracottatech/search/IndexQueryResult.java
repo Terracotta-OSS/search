@@ -16,6 +16,6 @@ public interface IndexQueryResult extends SortFieldProvider {
    * 
    * @return attributes
    */
-  public List<NVPair> getAttributes();
+  List<NVPair> getAttributes();
 
 }

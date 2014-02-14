@@ -5,13 +5,13 @@ package com.terracottatech.search;
 
 public interface IndexFile {
 
-  public boolean isTCFile();
+  boolean isTCFile();
 
-  public String getDestFilename();
+  String getDestFilename();
 
-  public String getLuceneFilename();
+  String getLuceneFilename();
 
-  public long length();
+  long length();
 
   String getIndexId(); // striped idx id, as in <lucene_dir>/<cache_name>/<index_id>/[lucene index files...]
 }

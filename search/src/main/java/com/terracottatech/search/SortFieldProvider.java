@@ -11,6 +11,6 @@ interface SortFieldProvider {
    * 
    * @return attributes
    */
-  public List<NVPair> getSortAttributes();
+  List<NVPair> getSortAttributes();
 
 }
