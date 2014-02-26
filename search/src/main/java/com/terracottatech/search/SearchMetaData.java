@@ -4,7 +4,8 @@
 package com.terracottatech.search;
 
 public enum SearchMetaData {
-  KEY("KEY@"), COMMAND("COMMAND@"), ATTR("ATTR@"), VALUE("VALUE@"), PREV_VALUE("PREV_VALUE@"), CACHENAME("CACHENAME@");
+  KEY("KEY@"), COMMAND("COMMAND@"), ATTR("ATTR@"), VALUE("VALUE@"), PREV_VALUE("PREV_VALUE@"), CACHENAME("CACHENAME@"), CLIENT_ID(
+      "CLIENT_ID@"), REQUEST_ID("REQUEST_ID@");
 
   private final String tag;
 
