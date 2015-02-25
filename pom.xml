@@ -16,7 +16,7 @@
   </properties>
   <groupId>com.terracottatech</groupId>
   <artifactId>search-root</artifactId>
-  <version>1.4.15-SNAPSHOT</version>
+  <version>1.4.15</version>
   <packaging>pom</packaging>
 
   <name>Terracotta Search</name>
