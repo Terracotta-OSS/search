@@ -211,7 +211,7 @@ public class Util {
    * Convert the given string into a unique and legal path for all file systems
    */
 
-  static String sanitizeCacheName(String name) {
+  public static String sanitizeCacheName(String name) {
     return sanitizeCacheName(name, provider);
   }
 
