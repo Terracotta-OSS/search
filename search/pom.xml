@@ -4,7 +4,7 @@
   <parent>
     <artifactId>search-root</artifactId>
     <groupId>com.terracottatech</groupId>
-    <version>1.4.14</version>
+    <version>1.4.15-SNAPSHOT</version>
   </parent>
 
   <artifactId>search</artifactId>
@@ -12,8 +12,5 @@
 
 
   <properties>
-    <metadata.build.jenkins.url>http://jenkins.terracotta.eur.ad.sag:8080/job/search_trunk_releaser/12/</metadata.build.jenkins.url>
-    <metadata.build.maven.active.profiles>terracotta-repositories,release,tc-publish</metadata.build.maven.active.profiles>
-    <metadata.svn.revision/>
   </properties>
 </project>
