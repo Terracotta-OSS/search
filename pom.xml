@@ -9,7 +9,7 @@
 
   <groupId>com.terracottatech</groupId>
   <artifactId>search-root</artifactId>
-  <version>1.4.15-SNAPSHOT</version>
+  <version>1.5.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <properties>
