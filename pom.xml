@@ -12,14 +12,10 @@
   <modelVersion>4.0.0</modelVersion>
   <properties>
     <skipCheckstyle>true</skipCheckstyle>
-  
-    <metadata.build.jenkins.url>http://jenkins.terracotta.eur.ad.sag:8080/job/search_1.4.x_releaser/4/</metadata.build.jenkins.url>
-    <metadata.build.maven.active.profiles>terracotta-repositories,release,tc-publish</metadata.build.maven.active.profiles>
-    <metadata.svn.revision/>
   </properties>
   <groupId>com.terracottatech</groupId>
   <artifactId>search-root</artifactId>
-  <version>1.4.16</version>
+  <version>1.4.17-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>Terracotta Search</name>
