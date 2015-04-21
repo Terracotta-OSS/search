@@ -3,6 +3,9 @@
  */
 package com.terracottatech.search;
 
+import static com.terracottatech.search.SearchConsts.TERRACOTTA_CACHE_NAME_FILE;
+import static com.terracottatech.search.SearchConsts.TERRACOTTA_HASH_FILE;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -13,9 +16,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
 import java.util.Set;
-
-import static com.terracottatech.search.SearchConsts.TERRACOTTA_CACHE_NAME_FILE;
-import static com.terracottatech.search.SearchConsts.TERRACOTTA_HASH_FILE;
 
 public class Util {
 
@@ -211,7 +211,7 @@ public class Util {
    * Convert the given string into a unique and legal path for all file systems
    */
 
-  static String sanitizeCacheName(String name) {
+  public static String sanitizeCacheName(String name) {
     return sanitizeCacheName(name, provider);
   }
 
