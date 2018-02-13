@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.terracotta.forge</groupId>
     <artifactId>forge-parent</artifactId>
-    <version>3.20</version>
+    <version>4.1</version>
   </parent>
 
   <groupId>com.terracottatech</groupId>
@@ -14,6 +14,7 @@
 
   <properties>
     <skipCheckstyle>true</skipCheckstyle>
+    <java.build.version>1.6</java.build.version>
   </properties>
 
   <name>Terracotta Search</name>
