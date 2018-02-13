@@ -7,11 +7,12 @@
   <parent>
     <groupId>org.terracotta.forge</groupId>
     <artifactId>forge-parent</artifactId>
-    <version>3.20</version>
+    <version>4.1</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <properties>
     <skipCheckstyle>true</skipCheckstyle>
+    <java.build.version>1.6</java.build.version>
   </properties>
   <groupId>com.terracottatech</groupId>
   <artifactId>search-root</artifactId>
