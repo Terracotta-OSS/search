@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <artifactId>search-root</artifactId>
+    <groupId>com.terracottatech</groupId>
+    <version>1.5.3</version>
+  </parent>
+
+  <artifactId>search-ee</artifactId>
+  <packaging>jar</packaging>
+
+  <dependencies>
+    <!-- needed to be compile scope for shaded plugin to work
+         however this dependency will be removed during install phase
+         by shaded plugin. See dependency-reduced-pom.xml in target -->
+    <dependency>
+      <groupId>org.apache.lucene</groupId>
+      <artifactId>lucene-core</artifactId>
+      <version>4.6.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.terracottatech</groupId>
+      <artifactId>offheap-restartable-store</artifactId>
+      <version>2.0.0</version>
+      <scope>provided</scope>
+      <exclusions>
+      	<exclusion>
+	      <groupId>com.terracottatech</groupId>
+	      <artifactId>fast-restartable-store</artifactId>
+      	</exclusion>
+      </exclusions>
+    </dependency>
+
+    <dependency>
+      <groupId>com.terracottatech</groupId>
+      <artifactId>search</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.8.2</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>2.1</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <artifactSet>
+                <includes>
+                  <include>org.apache.lucene:*</include>
+                </includes>
+              </artifactSet>    
+              <filters>
+                <filter>
+                  <artifact>org.apache.lucene:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/services/**</exclude>
+                    <exclude>org/apache/lucene/index/StandardDirectoryReader*</exclude>
+                    <exclude>org/apache/lucene/index/SegmentReader*</exclude>
+                  </excludes>
+                </filter>
+              </filters>              
+              <relocations>
+                <relocation>
+                  <pattern>org.apache.lucene</pattern>
+                  <shadedPattern>org.terracotta.shaded.lucene</shadedPattern>
+                </relocation>
+              </relocations>              
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>     
+      <plugin>
+        <groupId>org.codehaus.gmaven</groupId>
+        <artifactId>gmaven-plugin</artifactId>
+        <version>1.4</version>
+        <executions>
+          <execution>
+            <id>inject-shaded-services</id>
+            <phase>package</phase>
+            <goals>
+              <goal>execute</goal>
+            </goals>
+            <configuration>
+              <source>
+                def jarFile = new File(project.build.directory, "${project.artifactId}-${project.version}.jar")
+                ant.jar(destfile: jarFile, update: "true") {
+                  zipfileset(file: new File(project.basedir, "src/services/org.terracotta.shaded.lucene.codecs.Codec"), 
+                             fullpath: "META-INF/services/org.terracotta.shaded.lucene.codecs.Codec")
+                  zipfileset(file: new File(project.basedir, "src/services/org.terracotta.shaded.lucene.codecs.PostingsFormat"), 
+                             fullpath: "META-INF/services/org.terracotta.shaded.lucene.codecs.PostingsFormat")
+                  zipfileset(file: new File(project.basedir, "src/services/org.terracotta.shaded.lucene.codecs.DocValuesFormat"),
+                             fullpath: "META-INF/services/org.terracotta.shaded.lucene.codecs.DocValuesFormat")
+                }
+              </source>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>        
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <configuration>
+          <attach>false</attach>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-install-plugin</artifactId>
+        <version>2.5</version>
+        <configuration>
+          <createChecksum>true</createChecksum>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <profile>
+      <id>sag-deps</id>
+      <activation>
+        <property>
+          <name>sag-deps</name>
+          <value>true</value>
+        </property>
+      </activation>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.terracotta</groupId>
+              <artifactId>maven-forge-plugin</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>com.softwareag.ibit.tools.util</groupId>
+                  <artifactId>finder</artifactId>
+                  <!-- Before bumping version - verify it still accepts exclusion files -->
+                  <version>3.0</version>
+                  <scope>compile</scope>
+                </dependency>
+              </dependencies>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
+    </profile>
+  </profiles>
+</project>
