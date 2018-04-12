@@ -4,7 +4,7 @@
   <parent>
     <artifactId>search-root</artifactId>
     <groupId>com.terracottatech</groupId>
-    <version>1.5.2</version>
+    <version>1.5.2_TAB_7507_DHL</version>
   </parent>
 
   <artifactId>search</artifactId>
@@ -13,8 +13,13 @@
 
   <properties>
   
-    <metadata.build.jenkins.url>http://jenkins.terracotta.eur.ad.sag:8080/job/search_trunk_releaser/24/</metadata.build.jenkins.url>
+    <metadata.build.jenkins.url>http://jenkins.terracotta.eur.ad.sag:8080/job/search_trunk_releaser/27/</metadata.build.jenkins.url>
     <metadata.build.maven.active.profiles>terracotta-repositories,release,tc-publish,fullmode</metadata.build.maven.active.profiles>
-    <metadata.svn.revision/>
+    <metadata.svn.revision>52148</metadata.svn.revision>
   </properties>
+
+  <scm>
+    <connection>scm:git:git@github.com:Terracotta-OSS/search.git</connection>
+    <developerConnection>scm:git:https://github.com/Terracotta-OSS/search.git</developerConnection>
+  </scm>
 </project>
