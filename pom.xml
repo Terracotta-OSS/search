@@ -14,7 +14,7 @@
 
   <properties>
     <skipCheckstyle>true</skipCheckstyle>
-    <java.source.version>1.6</java.source.version>
+    <java.build.version>1.6</java.build.version>
   </properties>
 
   <name>Terracotta Search</name>
