@@ -4,10 +4,16 @@
   <parent>
     <artifactId>search-root</artifactId>
     <groupId>com.terracottatech</groupId>
-    <version>1.5.6-SNAPSHOT</version>
+    <version>1.5.5</version>
   </parent>
 
   <artifactId>search</artifactId>
   <packaging>jar</packaging>
 
+
+  <properties>
+    <metadata.build.jenkins.url>http://jenkins.terracotta.eur.ad.sag:8080/job/search_trunk_releaser/38/</metadata.build.jenkins.url>
+    <metadata.build.maven.active.profiles>terracotta-repositories,release,tc-publish,fullmode</metadata.build.maven.active.profiles>
+    <metadata.svn.revision>52719</metadata.svn.revision>
+  </properties>
 </project>
