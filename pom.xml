@@ -23,7 +23,7 @@
     <module>search</module>
     
   </modules>
-  
+
   <distributionManagement>
     <repository>
       <id>terracotta-releases</id>
