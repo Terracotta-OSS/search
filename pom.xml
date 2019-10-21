@@ -9,12 +9,16 @@
 
   <groupId>com.terracottatech</groupId>
   <artifactId>search-root</artifactId>
-  <version>1.5.8-SNAPSHOT</version>
+  <version>1.5.8</version>
   <packaging>pom</packaging>
 
   <properties>
     <skipCheckstyle>true</skipCheckstyle>
     <java.build.version>1.6</java.build.version>
+  
+    <metadata.build.jenkins.url>http://jenkins.terracotta.eur.ad.sag:8080/job/releasers/job/search_trunk_releaser/42/</metadata.build.jenkins.url>
+    <metadata.build.maven.active.profiles>terracotta-repositories,release,tc-publish,fullmode</metadata.build.maven.active.profiles>
+    <metadata.svn.revision>55612</metadata.svn.revision>
   </properties>
 
   <name>Terracotta Search</name>
