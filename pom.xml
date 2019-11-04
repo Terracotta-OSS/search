@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.terracotta.forge</groupId>
     <artifactId>forge-parent</artifactId>
-    <version>4.1</version>
+    <version>4.10</version>
   </parent>
 
   <groupId>com.terracottatech</groupId>
@@ -12,17 +12,34 @@
   <version>1.5.9-SNAPSHOT</version>
   <packaging>pom</packaging>
 
-  <properties>
-    <skipCheckstyle>true</skipCheckstyle>
-    <java.build.version>1.6</java.build.version>
-  </properties>
-
   <name>Terracotta Search</name>
 
   <modules>
     <module>search</module>
     
   </modules>
+
+  <profiles>
+    <profile>
+      <id>testVM</id>
+      <activation>
+        <property>
+          <name>testVM</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.terracotta</groupId>
+            <artifactId>maven-forge-plugin</artifactId>
+            <configuration>
+              <jvm>${testVM}</jvm>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 
   <distributionManagement>
     <repository>
