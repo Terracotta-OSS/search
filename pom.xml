@@ -4,10 +4,10 @@
   <parent>
     <groupId>org.terracotta.forge</groupId>
     <artifactId>forge-parent</artifactId>
-    <version>4.16</version>
+    <version>4.17</version>
   </parent>
 
-  <groupId>com.terracottatech</groupId>
+  <groupId>org.terracotta</groupId>
   <artifactId>search-root</artifactId>
   <version>1.5.13-SNAPSHOT</version>
   <packaging>pom</packaging>
@@ -22,19 +22,13 @@
     
   </modules>
 
-  <distributionManagement>
+  <!-- minimal set to find the parent -->
+  <repositories>
     <repository>
       <id>terracotta-releases</id>
-      <name>Terracotta Releases Repository</name>
-      <url>${terracotta-releases-url}</url>
+      <url>https://repo.terracotta.org/maven2</url>
     </repository>
-    <snapshotRepository>
-      <id>terracotta-snapshots</id>
-      <uniqueVersion>false</uniqueVersion>
-      <name>Terracotta Snapshots Repository</name>
-      <url>${terracotta-snapshots-url}</url>
-    </snapshotRepository>
-  </distributionManagement>
+  </repositories>
 
   <scm>
     <connection>scm:git:git@github.com:Terracotta-OSS/search.git</connection>
