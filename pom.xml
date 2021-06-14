@@ -9,7 +9,7 @@
 
   <groupId>org.terracotta</groupId>
   <artifactId>search-root</artifactId>
-  <version>1.5.18-SNAPSHOT</version>
+  <version>1.5.19-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>Terracotta Search</name>
